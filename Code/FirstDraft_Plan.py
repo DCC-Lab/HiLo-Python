@@ -13,10 +13,11 @@ imgUniform = tiff.imread(r"/Users/valeriepineaunoel/Desktop/sampleuniform(forspe
 # plt.show()
 
 ## Verify the size of both images for fun
-weightS, heightS = imgSpeckle.shape
-weightU, heightU = imgUniform.shape 
-print(weightS, heightS)
-print(weightU, heightU)
+# heightS, weightS = imgSpeckle.shape
+# heightU, weightU = imgUniform.shape 
+# print(weightS, heightS)
+# print(weightU, heightU)
+# print(imgSpeckle.shape[1])
 
 
 ## Difference image
@@ -40,27 +41,35 @@ imgDiffBandpass = simg.gaussian_filter(imgDiff, sigma=2)
 
 
 # Step 3 : Evaluate the weigthing function (squared) according to equation StDev_diff/MeanIntensity_s
-print(imgDiffBandpass)
 samplingWindow = 7 # in pixel^2
 n = int(samplingWindow/2)
 pixel = [0,0]
-positionInSamplingWindow = [pixel-n, pixel-n]
+positionInSamplingWindow = [pixel[0]-n, pixel[1]-n]
+if positionInSamplingWindow[0] < 0:
+	positionInSamplingWindow[0] = 0
+if positionInSamplingWindow[1] < 0: 
+	positionInSamplingWindow[1] = 0
+
+# Calculations in one sampling window
 valuesImgDiff = []
 valuesImgUniform = []
 
-# Calculations in one sampling window
-while positionInSamplingWindow[0] < samplingWindow:
-	while positionInSamplingWindow[1] < samplingWindow:
+while positionInSamplingWindow[0] <= pixel[0]+n and positionInSamplingWindow[0] <= imgDiffBandpass.shape[0]:
+	while positionInSamplingWindow[1] <= pixel[1]+n and positionInSamplingWindow[1] <= imgDiffBandpass.shape[1]:
 		valuePixelDiff = imgDiffBandpass[positionInSamplingWindow[0]][positionInSamplingWindow[1]]
+		
 		if valuePixelDiff < 0:
 			valuePixelDiff = 0
-		valuesImgDiff += valuePixel
+		valuesImgDiff.append(valuePixelDiff)
 		valuePixelUniform = imgUniform[positionInSamplingWindow[0]][positionInSamplingWindow[1]]
-		valuesImgUniform += valuePixelUniform
-		positionInSAmplingWindow += 1
+		valuesImgUniform.append(valuePixelUniform)
+		positionInSamplingWindow[1] += 1
+		
 	positionInSamplingWindow[1] = 0
 	positionInSamplingWindow[0] = positionInSamplingWindow[0] + 1
+
 contrastInSamplingWindow = np.std(valuesImgDiff)/np.mean(valuesImgUniform)
+print("ALLO {}".format(contrastInSamplingWindow))
 
 # Step 4 : Removing noise-induced bias from C^2 by subtracting 
 # Step 5 : construct LP and HP filters according to the W defined at step 2
