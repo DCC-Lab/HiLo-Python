@@ -28,8 +28,9 @@ imgDiff = imgSpeckle - imgUniform
 
 # Step 2 : Frequency bandpass on the difference image. Adjusting its with to tune the width of the sectioning strength
 ## Image in frequency space. Sigma defines the width of the filter. 
+sigma = 2
 imgDiffFrequency = np.fft.fft2(imgDiff) # produit des nombres complexes. Ne peux pas être affiché à moins d'utiliser np.abs(fft)
-imgDiffBandpass = simg.gaussian_filter(imgDiff, sigma=2)
+imgDiffBandpass = simg.gaussian_filter(imgDiff, sigma=sigma)
 
 # imgDiffFrequencyAbs = np.abs(imgDiffFrequency)
 # plt.imshow(imgDiffFrequencyAbs) # display des nombres complexes
@@ -44,32 +45,54 @@ imgDiffBandpass = simg.gaussian_filter(imgDiff, sigma=2)
 samplingWindow = 7 # in pixel^2
 n = int(samplingWindow/2)
 pixel = [0,0]
-positionInSamplingWindow = [pixel[0]-n, pixel[1]-n]
-if positionInSamplingWindow[0] < 0:
-	positionInSamplingWindow[0] = 0
-if positionInSamplingWindow[1] < 0: 
-	positionInSamplingWindow[1] = 0
+contrastFunction = [] # is it better to create an np array? 
 
-# Calculations in one sampling window
-valuesImgDiff = []
-valuesImgUniform = []
+while pixel[0] < imgDiffBandpass.shape[0]:
+	contrastArray = []
 
-while positionInSamplingWindow[0] <= pixel[0]+n and positionInSamplingWindow[0] <= imgDiffBandpass.shape[0]:
-	while positionInSamplingWindow[1] <= pixel[1]+n and positionInSamplingWindow[1] <= imgDiffBandpass.shape[1]:
-		valuePixelDiff = imgDiffBandpass[positionInSamplingWindow[0]][positionInSamplingWindow[1]]
+	while pixel[1] < imgDiffBandpass.shape[1]:
+		print("Valeur du pixel : {}".format(pixel))
+		valuesImgDiff = []
+		valuesImgUniform = []
+		positionInSamplingWindow = [pixel[0]-n, pixel[1]-n]
+		print("Ouséquejesuis : {}".format(positionInSamplingWindow))
+		if positionInSamplingWindow[0] < 0:
+			positionInSamplingWindow[0] = 0
+		if positionInSamplingWindow[1] < 0: 
+			positionInSamplingWindow[1] = 0
+		print("Ouséquejesuis2 : {}".format(positionInSamplingWindow))
+	
+		#Contrast calculation for one pixel
+		while positionInSamplingWindow[0] <= pixel[0]+n and positionInSamplingWindow[0] < imgDiffBandpass.shape[0]:
+			if positionInSamplingWindow[0] < 0:
+				positionInSamplingWindow[0] = 0
+			while positionInSamplingWindow[1] <= pixel[1]+n and positionInSamplingWindow[1] < imgDiffBandpass.shape[1]:
+				valuePixelDiff = imgDiffBandpass[positionInSamplingWindow[0]][positionInSamplingWindow[1]]
+				if valuePixelDiff < 0:
+					valuePixelDiff = 0
+				
+				print("VALEUR {}".format(valuePixelDiff))
+				print("Position {}".format(positionInSamplingWindow[1]))
+				valuesImgDiff.append(valuePixelDiff)
+				valuePixelUniform = imgUniform[positionInSamplingWindow[0]][positionInSamplingWindow[1]]
+				valuesImgUniform.append(valuePixelUniform)
+				positionInSamplingWindow[1] += 1
+				
+			positionInSamplingWindow[1] = pixel[1] - n
+			if positionInSamplingWindow[1] < 0: 
+				positionInSamplingWindow[1] = 0
+
+			print("Position of the samplig window {}".format(positionInSamplingWindow[0]))
+			positionInSamplingWindow[0] = positionInSamplingWindow[0] + 1
 		
-		if valuePixelDiff < 0:
-			valuePixelDiff = 0
-		valuesImgDiff.append(valuePixelDiff)
-		valuePixelUniform = imgUniform[positionInSamplingWindow[0]][positionInSamplingWindow[1]]
-		valuesImgUniform.append(valuePixelUniform)
-		positionInSamplingWindow[1] += 1
-		
-	positionInSamplingWindow[1] = 0
-	positionInSamplingWindow[0] = positionInSamplingWindow[0] + 1
+		contrastInSamplingWindow = np.std(valuesImgDiff)/np.mean(valuesImgUniform)
+		print("Contrast in one sampling window : {}".format(contrastInSamplingWindow))
+		contrastArray.append(contrastInSamplingWindow)
+		pixel[1] = pixel[1] + 1
 
-contrastInSamplingWindow = np.std(valuesImgDiff)/np.mean(valuesImgUniform)
-print("ALLO {}".format(contrastInSamplingWindow))
+	contrastFunction.append(contrastArray)
+	pixel[1] = 0
+	pixel[0] = pixel[0] + 1
 
 # Step 4 : Removing noise-induced bias from C^2 by subtracting 
 # Step 5 : construct LP and HP filters according to the W defined at step 2
