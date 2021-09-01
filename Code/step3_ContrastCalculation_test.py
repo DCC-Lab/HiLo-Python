@@ -3,6 +3,10 @@ import matplotlib.pyplot as plt
 import tifffile as tiff
 import scipy.ndimage as simg
 
+
+# Écentuellement, ce sera une fonction (ou classe?) qui va calculer le contraste. Filtre gaussien se fera avant. 
+# arguments : imagediff, imageuniforme, samplingwindow, 
+
 sigma = 2
 imgDiff = tiff.imread(r"/Users/valeriepineaunoel/Desktop/testImage.tif")
 imgDiffBandpass = simg.gaussian_filter(imgDiff, sigma=sigma)
@@ -10,22 +14,20 @@ imgDiffBandpass = simg.gaussian_filter(imgDiff, sigma=sigma)
 samplingWindow = 7 # in pixel^2
 n = int(samplingWindow/2)
 pixel = [0,0]
-contrastFunction = [] # is it better to create an np array? 
+contrastFunction = np.zeros(shape=(imgDiff.shape[0], imgDiff.shape[1])) # is it better to create an np array? 
+print(contrastFunction)
 
 while pixel[0] < imgDiffBandpass.shape[0]:
 	contrastArray = []
 
 	while pixel[1] < imgDiffBandpass.shape[1]:
-		print("Valeur du pixel : {}".format(pixel))
 		valuesImgDiff = []
 		valuesImgUniform = []
 		positionInSamplingWindow = [pixel[0]-n, pixel[1]-n]
-		print("Ouséquejesuis : {}".format(positionInSamplingWindow))
 		if positionInSamplingWindow[0] < 0:
 			positionInSamplingWindow[0] = 0
 		if positionInSamplingWindow[1] < 0: 
 			positionInSamplingWindow[1] = 0
-		print("Ouséquejesuis2 : {}".format(positionInSamplingWindow))
 	
 		#Contrast calculation for one pixel
 		while positionInSamplingWindow[0] <= pixel[0]+n and positionInSamplingWindow[0] < imgDiffBandpass.shape[0]:
@@ -36,28 +38,48 @@ while pixel[0] < imgDiffBandpass.shape[0]:
 				if valuePixelDiff < 0:
 					valuePixelDiff = 0
 				
-				print("VALEUR {}".format(valuePixelDiff))
-				print("Position {}".format(positionInSamplingWindow[1]))
 				valuesImgDiff.append(valuePixelDiff)
 				valuePixelUniform = imgUniform[positionInSamplingWindow[0]][positionInSamplingWindow[1]]
 				valuesImgUniform.append(valuePixelUniform)
+				
 				positionInSamplingWindow[1] += 1
 				
 			positionInSamplingWindow[1] = pixel[1] - n
 			if positionInSamplingWindow[1] < 0: 
 				positionInSamplingWindow[1] = 0
 
-			print("Position of the samplig window {}".format(positionInSamplingWindow[0]))
 			positionInSamplingWindow[0] = positionInSamplingWindow[0] + 1
 		
 		contrastInSamplingWindow = np.std(valuesImgDiff)/np.mean(valuesImgUniform)
-		print("Contrast in one sampling window : {}".format(contrastInSamplingWindow))
 		contrastArray.append(contrastInSamplingWindow)
 		pixel[1] = pixel[1] + 1
 
-	contrastFunction.append(contrastArray)
+	contrastFunction[pixel[0]] = contrastArray
 	pixel[1] = 0
 	pixel[0] = pixel[0] + 1
 
 ## Obtain the contrast^2
-print(contrastFunction)
+element1 = 0
+element2 = 0
+while element1 < contrastFunction.shape[0] : 
+	while element2 < contrastFunction.shape[1]:
+		value = contrastFunction[element1][element2]
+		contrastFunction[element1][element2] = value**2
+		element2 += 1
+	element1 += 1
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
