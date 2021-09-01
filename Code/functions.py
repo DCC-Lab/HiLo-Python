@@ -1,5 +1,6 @@
 import tifffile as tiff
 import scipy.ndimage as simg
+import numpy as np
 import exceptions as exc
 
 def image(imagepath):
@@ -17,39 +18,39 @@ def gaussianFilter(sigma, image):
 	imgGaussian = simg.gaussian_filter(image, sigma=sigma)
 	return imgGaussian
 
-def stDevAndMeanContrast(imageDifference, imageUniform, halfSamplingWindow, pixel): 
+def stDevAndMeanContrast(imageDifference, imageUniform, halfSamplingWindow, pixel, position): 
 	exc.isANumpyArray(imageDifference)
 	exc.isANumpyArray(imageUniform)
 	exc.isDefined(imageDifference)
 	exc.isDefined(imageUniform)
 	exc.isDefined(halfSamplingWindow)
 	exc.isDefined(pixel)
-	exc.isInt(halfSamplingwindow)
+	exc.isInt(halfSamplingWindow)
 
 	if type(pixel) is not list or len(pixel) != 2:
 		raise Exception("pixel must be a list of two int.")
 	else: 
 		valuesImgDiff = []
 		valuesImgUniform = []
-		while positionInSamplingWindow[0] <= pixel[0]+halfSamplingWondow and positionInSamplingWindow[0] < imageDifference.shape[0]:
-					if positionInSamplingWindow[0] < 0:
-						positionInSamplingWindow[0] = 0
-					while positionInSamplingWindow[1] <= pixel[1]+halfSamplingWondow and positionInSamplingWindow[1] < imageDifference.shape[1]:
-						valuePixelDiff = imageDifference[positionInSamplingWindow[0]][positionInSamplingWindow[1]]
+		while position[0] <= pixel[0]+halfSamplingWindow and position[0] < imageDifference.shape[0]:
+					if position[0] < 0:
+						position[0] = 0
+					while position[1] <= pixel[1]+halfSamplingWindow and position[1] < imageDifference.shape[1]:
+						valuePixelDiff = imageDifference[position[0]][position[1]]
 						if valuePixelDiff < 0:
 							valuePixelDiff = 0
 				
 						valuesImgDiff.append(valuePixelDiff)
-						valuePixelUniform = imageUniform[positionInSamplingWindow[0]][positionInSamplingWindow[1]]
+						valuePixelUniform = imageUniform[position[0]][position[1]]
 						valuesImgUniform.append(valuePixelUniform)
 				
-						positionInSamplingWindow[1] += 1
+						position[1] += 1
 				
-					positionInSamplingWindow[1] = pixel[1] - halfSamplingWondow
-					if positionInSamplingWindow[1] < 0: 
-						positionInSamplingWindow[1] = 0
+					position[1] = pixel[1] - halfSamplingWindow
+					if position[1] < 0: 
+						position[1] = 0
 
-					positionInSamplingWindow[0] = positionInSamplingWindow[0] + 1
+					position[0] = position[0] + 1
 
 		std, mean = np.std(valuesImgDiff), np.mean(valuesImgUniform) 
 		return std, mean
@@ -61,12 +62,12 @@ def contrastCalculation(difference, uniform, samplingWindow):
 
 	n = int(samplingWindow/2)
 	pixelPosition = [0,0]
-	contrastFunction = np.zeros(shape=(imageDifference.shape[0], imageDifference.shape[1]))
+	contrastFunction = np.zeros(shape=(difference.shape[0], difference.shape[1]))
 
-	while pixelPosition[0] < image.shape[0]:
+	while pixelPosition[0] < difference.shape[0]:
 		contrastArray = []
 
-		while pixelPosition[1] < imageDifference.shape[1]:
+		while pixelPosition[1] < difference.shape[1]:
 			positionInSamplingWindow = [pixelPosition[0]-n, pixelPosition[1]-n]
 			if positionInSamplingWindow[0] < 0:
 				positionInSamplingWindow[0] = 0
@@ -74,7 +75,7 @@ def contrastCalculation(difference, uniform, samplingWindow):
 				positionInSamplingWindow[1] = 0
 	
 			# Calculations of one pixel
-			stDevDifference, meanUniform = stDevAndMeanContrast(imageDifference=difference, imageUniform=uniform, halfSamplingWindow=n, pixel=pixelPosition)
+			stDevDifference, meanUniform = stDevAndMeanContrast(imageDifference=difference, imageUniform=uniform, halfSamplingWindow=n, pixel=pixelPosition, position=positionInSamplingWindow)
 				
 			contrastInSamplingWindow = stDevDifference/meanUniform
 			contrastArray.append(contrastInSamplingWindow)
