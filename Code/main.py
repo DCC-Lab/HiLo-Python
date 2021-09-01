@@ -12,10 +12,7 @@ imgDiffBP = fun.gaussianFilter(sigma=2, image=imgDiff)
 
 # Step 3 : Evaluate the weigthing function (squared) according to equation StDev_diff/MeanIntensity_s
 contrast = fun.contrastCalculation(difference=imgDiffBP, uniform=imgUniform, samplingWindow=7)
-contrastWeigthingFunction = fun.contrastCalculationSquared(contrast)
-
-print(contrast)
-print(contrastWeigthingFunction)
+contrastWeightingFunction = fun.contrastCalculationSquared(contrast)
 
 # Step 4 : Removing noise-induced bias from C^2 by subtracting 
 ## Calculating stDev of the uniform image
