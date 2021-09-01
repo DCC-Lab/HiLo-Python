@@ -18,11 +18,11 @@ def gaussianFilter(sigma, image):
 	imgGaussian = simg.gaussian_filter(image, sigma=sigma)
 	return imgGaussian
 
-def stDevAndMeanContrast(imageDifference, imageUniform, halfSamplingWindow, pixel, position): 
-	exc.isANumpyArray(imageDifference)
-	exc.isANumpyArray(imageUniform)
-	exc.isDefined(imageDifference)
-	exc.isDefined(imageUniform)
+def stDevAndMeanContrast(image1, image2, halfSamplingWindow, pixel, position): 
+	exc.isANumpyArray(image1)
+	exc.isANumpyArray(image2)
+	exc.isDefined(image1)
+	exc.isDefined(image2)
 	exc.isDefined(halfSamplingWindow)
 	exc.isDefined(pixel)
 	exc.isInt(halfSamplingWindow)
@@ -30,19 +30,19 @@ def stDevAndMeanContrast(imageDifference, imageUniform, halfSamplingWindow, pixe
 	if type(pixel) is not list or len(pixel) != 2:
 		raise Exception("pixel must be a list of two int.")
 	else: 
-		valuesImgDiff = []
-		valuesImgUniform = []
-		while position[0] <= pixel[0]+halfSamplingWindow and position[0] < imageDifference.shape[0]:
+		valuesImg1 = []
+		valuesImg2 = []
+		while position[0] <= pixel[0]+halfSamplingWindow and position[0] < image1.shape[0]:
 					if position[0] < 0:
 						position[0] = 0
-					while position[1] <= pixel[1]+halfSamplingWindow and position[1] < imageDifference.shape[1]:
-						valuePixelDiff = imageDifference[position[0]][position[1]]
-						if valuePixelDiff < 0:
-							valuePixelDiff = 0
-				
-						valuesImgDiff.append(valuePixelDiff)
-						valuePixelUniform = imageUniform[position[0]][position[1]]
-						valuesImgUniform.append(valuePixelUniform)
+					while position[1] <= pixel[1]+halfSamplingWindow and position[1] < image1.shape[1]:
+						valuePixel1 = image1[position[0]][position[1]]
+						if valuePixel1 < 0:
+							valuePixel1 = 0
+						valuesImg1.append(valuePixel1)
+						
+						valuePixel2 = image2[position[0]][position[1]]
+						valuesImg2.append(valuePixelUniform)
 				
 						position[1] += 1
 				
@@ -52,7 +52,7 @@ def stDevAndMeanContrast(imageDifference, imageUniform, halfSamplingWindow, pixe
 
 					position[0] = position[0] + 1
 
-		std, mean = np.std(valuesImgDiff), np.mean(valuesImgUniform) 
+		std, mean = np.std(valuesImg1), np.mean(valuesImg2) 
 		return std, mean
 
 def contrastCalculation(difference, uniform, samplingWindow):
