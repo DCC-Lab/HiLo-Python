@@ -94,6 +94,17 @@ while pixel[0] < imgDiffBandpass.shape[0]:
 	pixel[1] = 0
 	pixel[0] = pixel[0] + 1
 
+## Obtain the contrast^2
+element1 = 0
+element2 = 0
+while element1 < contrastFunction.shape[0] : 
+	while element2 < contrastFunction.shape[1]:
+		value = contrastFunction[element1][element2]
+		contrastFunction[element1][element2] = value**2
+		element2 += 1
+	element1 += 1
+
+
 # Step 4 : Removing noise-induced bias from C^2 by subtracting 
 # Step 5 : construct LP and HP filters according to the W defined at step 2
 # Step 6 : Evaluate the scaling function (seamless transition from low to high spatial frequencies)
