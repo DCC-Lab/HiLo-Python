@@ -3,8 +3,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 # Step 1 : Subtract uniform from speckled image to for the difference image
-imgSpeckle = fun.image("/Users/valeriepineaunoel/Documents/HiLo-Python/Data/samplespeckle.tif")
-imgUniform = fun.image("/Users/valeriepineaunoel/Documents/HiLo-Python/Data/sampleuniform.tif")
+imgSpeckle = fun.image("/Users/valeriepineaunoel/Documents/HiLo-Python/Data/testImage.tif")
+imgUniform = fun.image("/Users/valeriepineaunoel/Documents/HiLo-Python/Data/testImage2.tif")
 imgDiff = imgSpeckle - imgUniform
 
 # Step 2 : Frequency bandpass on the difference image. Adjusting its with to tune the width of the sectioning strength
@@ -15,9 +15,9 @@ fftBandpassFilter = np.fft.fft2(bandpassFilter)
 
 # Step 3 : Evaluate the weigthing function (squared) according to equation StDev_diff/MeanIntensity_s
 contrast = fun.contrastCalculation(difference=imgDiffBP, uniform=imgUniform, speckle=imgSpeckle, samplingWindow=7, ffilter=fftBandpassFilter) # va être utilisé pour produire le LP
+print("ALLO : {}".format(contrast))
 contrastWeightingFunction = fun.squaredFunction(contrast) # va être utilisé pour évaluer n
-
-print(contrast)
+print(contrastWeightingFunction)
 
 # Step 4 : Removing noise-induced bias from C^2 by subtracting 
 # stdevSpeckle, meanSpeckle = fun.stdevAndMeanWholeImage(image=imgSpeckle, samplingWindow=7)

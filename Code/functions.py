@@ -26,20 +26,33 @@ def valueOnePixel(image, pixelPosition):
 
 def valueAllPixels(image):
 	pixel = [0,0]
-	values = []
+	values = np.zeros(shape=(image.shape[0], image.shape[1]))
 	while pixel[0] < image.shape[0]:
 		while pixel[1] < image.shape[1]:
 			valuePixel = valueOnePixel(image=image, pixelPosition=pixel)
-			values.append(valuePixel)
+			values[pixel[0]][pixel[1]] = valuePixel
 			pixel[1] = pixel[1] + 1
 		pixel[1] = 0
 		pixel[0] = pixel[0] + 1
 	return values
 
 def absSumAllPixels(function):
-	for element in function:
-		function[element] = abs(function[element]) # list indices must be integers or slices, not numpy.complex128
-	sumValue = sum(function)
+	exc.isANumpyArray(function)
+
+	element1 = 0
+	element2 = 0
+	while element1 < function.shape[0]:
+		while element2 < function.shape[1]: 
+			if type(function[element1][element2]) is np.complex128:
+				function[element1][element2] = np.absolute(function[element1][element2])
+			else : 
+				function[element1][element2] = abs(function[element1][element2])
+			element2 += 1
+		element2 = 0
+		element1 += 1 
+	sumValue = np.sum(function)
+	print("SUM VALUE : {}".format(sumValue))
+
 	return sumValue
 
 def squaredFunction(function):
@@ -51,10 +64,15 @@ def squaredFunction(function):
 				value = function[element1][element2]
 				function[element1][element2] = value**2
 				element2 += 1
+				print("ça square")
+			element2 = 0
 			element1 += 1
-	else:
+	elif type(function) is list:
 		for element in function:
 			function[element] = function[element]**2
+	else:
+		function = function**2
+		print(function)
 
 	return function
 
@@ -155,7 +173,7 @@ def noiseInducedBias(cameraGain, readoutNoiseVariance, imageSpeckle, imageUnifor
 		while element2 < meanUniform.shape[1]:
 			noiseArray.append((((cameraGain*meanUniform[element1][element2]) + (cameraGain*meanSpeckle[element1][element2]) + readoutNoiseVariance)) * squaredAbsFilter)
 			element2 += 1
-		bias.append(noiseArray)	
+		bias[element1] = noiseArray	
 		element2 = 0
 		element1 += 1
 		
@@ -188,8 +206,10 @@ def contrastCalculation(difference, uniform, speckle, samplingWindow, ffilter):
 			# Calculations of one pixel
 			stdevDifference, meanUniform = stDevAndMeanOnePixel(image1=difference, image2=uniform, halfSamplingWindow=n, pixel=pixelPosition, position=positionInSamplingWindow)
 			reducedStdevDifference = noiseInducedBiasReductionFromStdev(noise=noiseFunction, stdev=stdevDifference, pixel=pixelPosition)
+			print("REDUCTION du noise : {}".format(reducedStdevDifference))
 
 			contrastInSamplingWindow = reducedStdevDifference/meanUniform
+			print("CONTRAST D'UN PIXEL : {}".format(contrastInSamplingWindow))
 			contrastArray.append(contrastInSamplingWindow)
 			pixelPosition[1] = pixelPosition[1] + 1
 
