@@ -1,6 +1,7 @@
 import tifffile as tiff
 import scipy.ndimage as simg
 import numpy as np
+import math as math
 import exceptions as exc
 
 def image(imagepath):
@@ -8,6 +9,38 @@ def image(imagepath):
 	exc.isString(imagepath)
 	image = tiff.imread(imagepath) 
 	return image
+
+def differenceImage(speckle, uniform):
+	exc.isANumpyArray(speckle)
+	exc.isANumpyArray(uniform)
+	exc.isSameShape(image1=speckle, image2=uniform)
+
+	# Subtraction
+	element1 = 0
+	element2 = 0
+	typeOfData = type(speckle[0][0])
+	difference = np.zeros(shape=(speckle.shape[0], speckle.shape[1]), dtype=np.int16)
+	while element1 < speckle.shape[0]:
+		while element2 < speckle.shape[1]:
+			difference[element1][element2] = speckle[element1][element2] - uniform[element1][element2]
+			element2 += 1
+		element2 = 0
+		element1 += 1
+
+	# Find the minimal value
+	minPixel = np.amin(difference)
+
+	# Rescale the data
+	element1 = 0
+	element2 = 0
+	while element1 < difference.shape[0]:
+		while element2 < difference.shape[1]:
+			difference[element1][element2] = difference[element1][element2] + abs(minPixel)
+			element2 += 1
+		element2 = 0
+		element1 += 1
+
+	return difference
 
 def gaussianFilter(sigma, image):
 	exc.isANumpyArray(image)
@@ -17,6 +50,28 @@ def gaussianFilter(sigma, image):
 
 	imgGaussian = simg.gaussian_filter(image, sigma=sigma)
 	return imgGaussian
+<<<<<<< Updated upstream
+=======
+
+def gaussianFilterOfImage(filteredImage, differenceImage):
+	exc.isANumpyArray(filteredImage)
+	exc.isANumpyArray(differenceImage)
+	exc.isSameShape(image1=filteredImage, image2=differenceImage)
+
+	bandpassFilter = filteredImage - differenceImage
+	minValue = np.amin(bandpassFilter)
+
+	i1 = 0
+	i2 = 0
+	while i1 < filteredImage.shape[0]:
+		while i2 < filteredImage.shape[1]:
+			bandpassFilter[i1][i2] = bandpassFilter[i1][i2] + abs(minValue)
+			i2 += 1
+		i2 = 0
+		i1 += 1
+
+	return bandpassFilter
+>>>>>>> Stashed changes
 
 def valueOnePixel(image, pixelPosition):
 	value = image[pixelPosition[0]][pixelPosition[1]]
@@ -51,7 +106,6 @@ def absSumAllPixels(function):
 		element2 = 0
 		element1 += 1 
 	sumValue = np.sum(function)
-	print("SUM VALUE : {}".format(sumValue))
 
 	return sumValue
 
@@ -64,7 +118,6 @@ def squaredFunction(function):
 				value = function[element1][element2]
 				function[element1][element2] = value**2
 				element2 += 1
-				print("ça square")
 			element2 = 0
 			element1 += 1
 	elif type(function) is list:
@@ -206,10 +259,8 @@ def contrastCalculation(difference, uniform, speckle, samplingWindow, ffilter):
 			# Calculations of one pixel
 			stdevDifference, meanUniform = stDevAndMeanOnePixel(image1=difference, image2=uniform, halfSamplingWindow=n, pixel=pixelPosition, position=positionInSamplingWindow)
 			reducedStdevDifference = noiseInducedBiasReductionFromStdev(noise=noiseFunction, stdev=stdevDifference, pixel=pixelPosition)
-			print("REDUCTION du noise : {}".format(reducedStdevDifference))
 
 			contrastInSamplingWindow = reducedStdevDifference/meanUniform
-			print("CONTRAST D'UN PIXEL : {}".format(contrastInSamplingWindow))
 			contrastArray.append(contrastInSamplingWindow)
 			pixelPosition[1] = pixelPosition[1] + 1
 
@@ -217,10 +268,26 @@ def contrastCalculation(difference, uniform, speckle, samplingWindow, ffilter):
 		pixelPosition[1] = 0
 		pixelPosition[0] = pixelPosition[0] + 1
 
+	print(contrastFunction)
 	return contrastFunction
 
+def lowPassFilter(image, sigmaFilter):
+	exc.isANumpyArray(image)
+	exc.isIntOrFloat(sigmaFilter)
 
+	x, y = np.meshgrid(np.linspace(-1,1,image.shape[0]), np.linspace(-1,1,image.shape[1]))
+	d = np.sqrt(x*x+y*y)
+	sigma = (sigmaFilter*0.18)/(2*math.sqrt(2*math.log(2)))
+	mu = 0.0
+	gauss = (1/(sigma*2*np.pi)) * np.exp(-((d-mu)**2/(2.0*sigma**2)))
 
+	return gauss
+
+def highPassFilter(low):
+	exc.isANumpyArray(low)
+
+	hi = 1 - low
+	return hi
 
 
 
