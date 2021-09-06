@@ -62,6 +62,7 @@ plt.show()
 tiff.imshow(contrastUniform)
 plt.show()
 tiff.imshow(LO)
+# the LO image is weird and the HI image in reversed. À faire demain! 
 plt.show()
 tiff.imshow(HI)
 plt.show()
