@@ -76,7 +76,7 @@ def valueOnePixel(image, pixelPosition):
 
 def valueAllPixels(image):
 	pixel = [0,0]
-	values = np.zeros(shape=(image.shape[0], image.shape[1]))
+	values = np.zeros(shape=(image.shape[0], image.shape[1]), dtype=np.int16)
 	while pixel[0] < image.shape[0]:
 		while pixel[1] < image.shape[1]:
 			valuePixel = valueOnePixel(image=image, pixelPosition=pixel)
@@ -166,8 +166,8 @@ def stdevAndMeanWholeImage(image, samplingWindow):
 
 	n = int(samplingWindow/2)
 	pixelPosition = [0,0]
-	stDevImage = np.zeros(shape=(image.shape[0], image.shape[1]))
-	meanImage = np.zeros(shape=(image.shape[0], image.shape[1]))
+	stDevImage = np.zeros(shape=(image.shape[0], image.shape[1]), dtype=np.int16)
+	meanImage = np.zeros(shape=(image.shape[0], image.shape[1]), dtype=np.int16)
 
 	while pixelPosition[0] < image.shape[0]:
 		stDevArray = []
@@ -210,7 +210,7 @@ def noiseInducedBias(cameraGain, readoutNoiseVariance, imageSpeckle, imageUnifor
 
 	i1 = 0
 	i2 = 0
-	bias = np.zeros(shape=(imageSpeckle.shape[0], imageSpeckle.shape[1]))
+	bias = np.zeros(shape=(imageSpeckle.shape[0], imageSpeckle.shape[1]), dtype=np.int16)
 	while i1 < meanUniform.shape[0]:
 		noiseArray = []
 		while i2 < meanUniform.shape[1]:
@@ -233,7 +233,7 @@ def contrastCalculation(difference, uniform, speckle, samplingWindow, ffilter):
 
 	n = int(samplingWindow/2)
 	pixelPosition = [0,0]
-	contrastFunction = np.zeros(shape=(difference.shape[0], difference.shape[1]))
+	contrastFunction = np.zeros(shape=(difference.shape[0], difference.shape[1]), dtype=np.int16)
 	noiseFunction = noiseInducedBias(cameraGain=(30000/65636), readoutNoiseVariance=0.3508935, imageSpeckle=speckle, imageUniform=uniform, fftFilter=ffilter, samplingWindowSize=samplingWindow)
 
 	while pixelPosition[0] < difference.shape[0]:
@@ -258,6 +258,7 @@ def contrastCalculation(difference, uniform, speckle, samplingWindow, ffilter):
 		pixelPosition[1] = 0
 		pixelPosition[0] = pixelPosition[0] + 1
 
+	print(contrastFunction)
 	return contrastFunction
 
 def lowPassFilter(image, sigmaFilter):
