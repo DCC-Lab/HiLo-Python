@@ -44,8 +44,6 @@ def differenceImage(speckle, uniform):
 
 def gaussianFilter(sigma, image):
 	exc.isANumpyArray(image)
-	exc.isDefined(sigma)
-	exc.isDefined(image)
 	exc.isIntOrFloat(sigma)
 
 	imgGaussian = simg.gaussian_filter(image, sigma=sigma)
@@ -127,10 +125,6 @@ def squaredFunction(function):
 	return function
 
 def stDevAndMeanOnePixel(image1, halfSamplingWindow, pixel, position, image2=None): 
-	exc.isDefined(image1)
-	exc.isDefined(halfSamplingWindow)
-	exc.isDefined(pixel)
-	exc.isDefined(position)
 	exc.isANumpyArray(image1)
 	if image2 is not None : 
 		exc.isANumpyArray(image2)
