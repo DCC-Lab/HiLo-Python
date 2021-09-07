@@ -16,29 +16,29 @@ def differenceImage(speckle, uniform):
 	exc.isSameShape(image1=speckle, image2=uniform)
 
 	# Subtraction
-	element1 = 0
-	element2 = 0
+	i1 = 0
+	i2 = 0
 	typeOfData = type(speckle[0][0])
 	difference = np.zeros(shape=(speckle.shape[0], speckle.shape[1]), dtype=np.int16)
-	while element1 < speckle.shape[0]:
-		while element2 < speckle.shape[1]:
-			difference[element1][element2] = speckle[element1][element2] - uniform[element1][element2]
-			element2 += 1
-		element2 = 0
-		element1 += 1
+	while i1 < speckle.shape[0]:
+		while i2 < speckle.shape[1]:
+			difference[i1][i2] = speckle[i1][i2] - uniform[i1][i2]
+			i2 += 1
+		i2 = 0
+		i1 += 1
 
 	# Find the minimal value
 	minPixel = np.amin(difference)
 
 	# Rescale the data
-	element1 = 0
-	element2 = 0
-	while element1 < difference.shape[0]:
-		while element2 < difference.shape[1]:
-			difference[element1][element2] = difference[element1][element2] + abs(minPixel)
-			element2 += 1
-		element2 = 0
-		element1 += 1
+	i1 = 0
+	i2 = 0
+	while i1 < difference.shape[0]:
+		while i2 < difference.shape[1]:
+			difference[i1][i2] = difference[i1][i2] + abs(minPixel)
+			i2 += 1
+		i2 = 0
+		i1 += 1
 
 	return difference
 
@@ -50,8 +50,6 @@ def gaussianFilter(sigma, image):
 
 	imgGaussian = simg.gaussian_filter(image, sigma=sigma)
 	return imgGaussian
-<<<<<<< Updated upstream
-=======
 
 def gaussianFilterOfImage(filteredImage, differenceImage):
 	exc.isANumpyArray(filteredImage)
@@ -71,7 +69,6 @@ def gaussianFilterOfImage(filteredImage, differenceImage):
 		i1 += 1
 
 	return bandpassFilter
->>>>>>> Stashed changes
 
 def valueOnePixel(image, pixelPosition):
 	value = image[pixelPosition[0]][pixelPosition[1]]
@@ -94,32 +91,32 @@ def valueAllPixels(image):
 def absSumAllPixels(function):
 	exc.isANumpyArray(function)
 
-	element1 = 0
-	element2 = 0
-	while element1 < function.shape[0]:
-		while element2 < function.shape[1]: 
-			if type(function[element1][element2]) is np.complex128:
-				function[element1][element2] = np.absolute(function[element1][element2])
+	i1 = 0
+	i2 = 0
+	while i1 < function.shape[0]:
+		while i2 < function.shape[1]: 
+			if type(function[i1][i2]) is np.complex128:
+				function[i1][i2] = np.absolute(function[i1][i2])
 			else : 
-				function[element1][element2] = abs(function[element1][element2])
-			element2 += 1
-		element2 = 0
-		element1 += 1 
+				function[i1][i2] = abs(function[i1][i2])
+			i2 += 1
+		i2 = 0
+		i1 += 1 
 	sumValue = np.sum(function)
 
 	return sumValue
 
 def squaredFunction(function):
 	if type(function) is np.ndarray:
-		element1 = 0
-		element2 = 0
-		while element1 < function.shape[0] : 
-			while element2 < function.shape[1]:
-				value = function[element1][element2]
-				function[element1][element2] = value**2
-				element2 += 1
-			element2 = 0
-			element1 += 1
+		i1 = 0
+		i2 = 0
+		while i1 < function.shape[0] : 
+			while i2 < function.shape[1]:
+				value = function[i1][i2]
+				function[i1][i2] = value**2
+				i2 += 1
+			i2 = 0
+			i1 += 1
 	elif type(function) is list:
 		for element in function:
 			function[element] = function[element]**2
@@ -218,17 +215,17 @@ def noiseInducedBias(cameraGain, readoutNoiseVariance, imageSpeckle, imageUnifor
 	absfftFilter = absSumAllPixels(function=valuesFFTFilter)
 	squaredAbsFilter = squaredFunction(function=absfftFilter)
 
-	element1 = 0
-	element2 = 0
+	i1 = 0
+	i2 = 0
 	bias = np.zeros(shape=(imageSpeckle.shape[0], imageSpeckle.shape[1]))
-	while element1 < meanUniform.shape[0]:
+	while i1 < meanUniform.shape[0]:
 		noiseArray = []
-		while element2 < meanUniform.shape[1]:
-			noiseArray.append((((cameraGain*meanUniform[element1][element2]) + (cameraGain*meanSpeckle[element1][element2]) + readoutNoiseVariance)) * squaredAbsFilter)
-			element2 += 1
-		bias[element1] = noiseArray	
-		element2 = 0
-		element1 += 1
+		while i2 < meanUniform.shape[1]:
+			noiseArray.append((((cameraGain*meanUniform[i1][i2]) + (cameraGain*meanSpeckle[i1][i2]) + readoutNoiseVariance)) * squaredAbsFilter)
+			i2 += 1
+		bias[i1] = noiseArray	
+		i2 = 0
+		i1 += 1
 		
 	return bias
 
