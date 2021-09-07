@@ -3,14 +3,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 import tifffile as tiff
 
+# Sigma defines the width of the filter.
 sigmaValue = 2
 
 # Step 1 : Subtract uniform from speckled image to for the difference image
-
-imgSpeckle = fun.image("/Users/valeriepineaunoel/Documents/HiLo-Python/Data/testImage.tif")
-imgUniform = fun.image("/Users/valeriepineaunoel/Documents/HiLo-Python/Data/testImage2.tif")
-imgDiff = imgSpeckle - imgUniform
-
 imgSpeckle = fun.image("/Users/valeriepineaunoel/Documents/HiLo-Python/Data/samplespeckle.tif")
 imgUniform = fun.image("/Users/valeriepineaunoel/Documents/HiLo-Python/Data/sampleuniform.tif")
 fftUniform = np.fft.fft2(imgUniform)
@@ -18,17 +14,14 @@ imgDiff = fun.differenceImage(speckle=imgSpeckle, uniform=imgUniform)
 
 
 # Step 2 : Frequency bandpass on the difference image. Adjusting its with to tune the width of the sectioning strength
-## Image in frequency space. Sigma defines the width of the filter. 
+## Image in frequency space.
 imgDiffBP = fun.gaussianFilter(sigma=sigmaValue, image=imgDiff)
 bandpassFilter = fun.gaussianFilterOfImage(filteredImage=imgDiffBP, differenceImage=imgDiff)
 fftBandpassFilter = np.fft.fft2(bandpassFilter)
 
 # # Step 3 : Evaluate the weigthing function (squared) according to equation StDev_diff/MeanIntensity_s
-contrast = fun.contrastCalculation(difference=imgDiffBP, uniform=imgUniform, speckle=imgSpeckle, samplingWindow=7, ffilter=fftBandpassFilter) # va être utilisé pour produire le LP
-
 # Step 4 : Removing noise-induced bias from C^2 by subtracting 
-# stdevSpeckle, meanSpeckle = fun.stdevAndMeanWholeImage(image=imgSpeckle, samplingWindow=7)
-# stdevUniform, meanUniform = fun.stdevAndMeanWholeImage(image=imgUniform, samplingWindow=7)
+contrast = fun.contrastCalculation(difference=imgDiffBP, uniform=imgUniform, speckle=imgSpeckle, samplingWindow=7, ffilter=fftBandpassFilter) # va être utilisé pour produire le LP
 contrastSquared = fun.squaredFunction(contrast) # va être utilisé pour évaluer n
 
 
@@ -43,13 +36,13 @@ contrastSquared = fun.squaredFunction(contrast) # va être utilisé pour évalue
 lowFilter = fun.lowPassFilter(image=imgUniform, sigmaFilter=sigmaValue)
 highFilter = fun.highPassFilter(low=lowFilter)
 
-contrastUniform = contrast*imgUniform
-fftContrastUniform = np.fft.fft2(contrastUniform)
-fftLO = lowFilter*fftContrastUniform
-LO = np.fft.ifft2(fftLO)
+# Apply the low-pass frequency filter on the uniform image to create the LO portion
+# Ilp = LP[C*Iu]
+LO = np.fft.ifft2(lowFilter*(np.fft.fft2(contrast*imgUniform)))
 
-fftHI = highFilter*fftUniform
-HI = np.fft.fft2(fftHI)
+# Apply the high-pass frequency filter to the uniform image to obtain the HI portion
+# Ihp = HP[Iu]
+HI = np.fft.fft2(highFilter*fftUniform)
 
 tiff.imshow(imgDiff)
 plt.show()
