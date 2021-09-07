@@ -74,33 +74,57 @@ def valueOnePixel(image, pixelPosition):
 		value = 0
 	return value
 
-def valueAllPixels(image):
-	pixel = [0,0]
-	values = np.zeros(shape=(image.shape[0], image.shape[1]), dtype=np.int16)
-	while pixel[0] < image.shape[0]:
-		while pixel[1] < image.shape[1]:
-			valuePixel = valueOnePixel(image=image, pixelPosition=pixel)
-			values[pixel[0]][pixel[1]] = valuePixel
-			pixel[1] = pixel[1] + 1
-		pixel[1] = 0
-		pixel[0] = pixel[0] + 1
+def valueAllPixels(image, px, samplingWindow=None):
+	if samplingWindow is None:
+		samplingWindow = image.shape[0]
+
+	n = int(samplingWindow/2)
+	positionInSW = [px[0]-n, px[1]-n]
+
+	values = []
+	while positionInSW[0] <= px[0]+n and positionInSW[0] < image.shape[0]:
+		if positionInSW[0] < 0:
+			positionInSW[0] = 0
+		while positionInSW[1] <= px[1]+n and positionInSW[1] < image.shape[1]:
+			if positionInSW[1] < 0:  
+				positionInSW[1] = 0
+			values.append(valueOnePixel(image=image, pixelPosition=positionInSW))
+			positionInSW[1] += 1
+				
+		positionInSW[1] = px[1] - n
+		positionInSW[0] = positionInSW[0] + 1
+
 	return values
 
 def absSumAllPixels(function):
-	exc.isANumpyArray(function)
-
 	i1 = 0
 	i2 = 0
-	while i1 < function.shape[0]:
-		while i2 < function.shape[1]: 
-			if type(function[i1][i2]) is np.complex128:
-				function[i1][i2] = np.absolute(function[i1][i2])
+	if type(function) is np.ndarray:
+		while i1 < function.shape[0]:
+			while i2 < function.shape[1]: 
+				if type(function[i1][i2]) is np.complex128:
+					function[i1][i2] = np.absolute(function[i1][i2])
+				else : 
+					function[i1][i2] = abs(function[i1][i2])
+				i2 += 1
+			i2 = 0
+			i1 += 1 
+		sumValue = np.sum(function)
+
+	elif type(function) is list:
+		for i in range(len(function)):
+			if type(function[i]) is np.complex128:
+				function[i] = np.absolute(function[i])
 			else : 
-				function[i1][i2] = abs(function[i1][i2])
-			i2 += 1
-		i2 = 0
-		i1 += 1 
-	sumValue = np.sum(function)
+				function[i] = abs(function[i])
+		sumValue = sum(function)
+
+	else:
+		if type(function) is np.complex128:
+			function = np.absolute(function)
+		else : 
+			function = abs(function)
+		sumValue = sum(function)
 
 	return sumValue
 
@@ -123,71 +147,37 @@ def squaredFunction(function):
 
 	return function
 
-def stDevAndMeanOnePixel(image1, halfSamplingWindow, pixel, position, image2=None): 
-	exc.isANumpyArray(image1)
-	if image2 is not None : 
-		exc.isANumpyArray(image2)
-	exc.isInt(halfSamplingWindow)
+def stDevAndMeanOnePixel(image, sw, pixel): 
+	exc.isANumpyArray(image)
+	exc.isInt(sw)
 
 	if type(pixel) is not list or len(pixel) != 2:
 		raise Exception("pixel must be a list of two int.")
 	 
-	valuesImg1 = []
-	valuesImg2 = []
-	while position[0] <= pixel[0]+halfSamplingWindow and position[0] < image1.shape[0]:
-				if position[0] < 0:
-					position[0] = 0
-				while position[1] <= pixel[1]+halfSamplingWindow and position[1] < image1.shape[1]:
-					valuePixel1 = valueOnePixel(image = image1, pixelPosition = position)
-					valuesImg1.append(valuePixel1)
-						
-					if image2 is not None : 	
-						valuePixel2 = valueOnePixel(image = image2, pixelPosition = position)
-						valuesImg2.append(valuePixel2)
-				
-					position[1] += 1
-				
-				position[1] = pixel[1] - halfSamplingWindow
-				if position[1] < 0: 
-					position[1] = 0
+	valuesOfPixelInSamplingWindow = valueAllPixels(image=image, px=pixel, samplingWindow=sw)
+	std, mean = np.std(valuesOfPixelInSamplingWindow), np.mean(valuesOfPixelInSamplingWindow) 
 
-				position[0] = position[0] + 1
-
-	if image2 is not None : 
-		std, mean = np.std(valuesImg1), np.mean(valuesImg2) 
-	else: 
-		std, mean = np.std(valuesImg1), np.mean(valuesImg1)
-		
 	return std, mean
 
 def stdevAndMeanWholeImage(image, samplingWindow):
 	exc.isANumpyArray(image)
 	exc.isInt(samplingWindow)
 
-	n = int(samplingWindow/2)
-	pixelPosition = [0,0]
 	stDevImage = np.zeros(shape=(image.shape[0], image.shape[1]), dtype=np.int16)
 	meanImage = np.zeros(shape=(image.shape[0], image.shape[1]), dtype=np.int16)
-
-	while pixelPosition[0] < image.shape[0]:
-		stDevArray = []
-		meanArray = []
-
-		while pixelPosition[1] < image.shape[1]:
-			positionInSamplingWindow = [pixelPosition[0]-n, pixelPosition[1]-n]
-			if positionInSamplingWindow[0] < 0:
-				positionInSamplingWindow[0] = 0
-			if positionInSamplingWindow[1] < 0: 
-				positionInSamplingWindow[1] = 0
 	
+	pixelPosition = [0,0]
+	while pixelPosition[0] < image.shape[0]:
+		stdevArray = []
+		meanArray = []
+		while pixelPosition[1] < image.shape[1]:
 			# Calculations of one pixel
-			stdev, mean = stDevAndMeanOnePixel(image1=image, halfSamplingWindow=n, pixel=pixelPosition, position=positionInSamplingWindow)
-				
-			stDevArray.append(stdev)
+			stdev, mean = stDevAndMeanOnePixel(image=image, sw=samplingWindow, pixel=pixelPosition)
+			stdevArray.append(stdev)
 			meanArray.append(mean)
 			pixelPosition[1] = pixelPosition[1] + 1
 
-		stDevImage[pixelPosition[0]] = stDevArray
+		stDevImage[pixelPosition[0]] = stdevArray
 		meanImage[pixelPosition[0]] = meanArray
 		pixelPosition[1] = 0
 		pixelPosition[0] = pixelPosition[0] + 1
@@ -204,26 +194,52 @@ def noiseInducedBias(cameraGain, readoutNoiseVariance, imageSpeckle, imageUnifor
 
 	stdevSpeckle, meanSpeckle = stdevAndMeanWholeImage(image=imageSpeckle, samplingWindow=samplingWindowSize)
 	stdevUniform, meanUniform = stdevAndMeanWholeImage(image=imageUniform, samplingWindow=samplingWindowSize)
-	valuesFFTFilter = valueAllPixels(image=fftFilter)
-	absfftFilter = absSumAllPixels(function=valuesFFTFilter)
-	squaredAbsFilter = squaredFunction(function=absfftFilter)
 
+	# 
+	pixelPosition = [0,0]
+	bandpassFilterSum = np.zeros(shape=(fftFilter.shape[0], fftFilter.shape[1]), dtype=np.int16)
+	
+	while pixelPosition[0] < fftFilter.shape[0]:
+		noiseArray = []
+		while pixelPosition[1] < fftFilter.shape[1]:
+			# Values of all pixels contained in one sampling window
+			valuesFFTFilter = valueAllPixels(image=fftFilter, px=pixelPosition, samplingWindow=samplingWindowSize)
+			# abs and squared of all of those values
+			valuesFFTFilterSum = absSumAllPixels(function=valuesFFTFilter)
+			valuesFFTFilterSumSquared = squaredFunction(function=valuesFFTFilterSum)
+			noiseArray.append(valuesFFTFilterSum)
+			pixelPosition[1] += 1
+
+		bandpassFilterSum[pixelPosition[0]] = noiseArray
+		pixelPosition[1] = 0
+		pixelPosition[0] += 1
+
+	# Calculate the noise-induced biased function.  
 	i1 = 0
 	i2 = 0
 	bias = np.zeros(shape=(imageSpeckle.shape[0], imageSpeckle.shape[1]), dtype=np.int16)
 	while i1 < meanUniform.shape[0]:
 		noiseArray = []
 		while i2 < meanUniform.shape[1]:
-			noiseArray.append((((cameraGain*meanUniform[i1][i2]) + (cameraGain*meanSpeckle[i1][i2]) + readoutNoiseVariance)) * squaredAbsFilter)
+			noiseArray.append((((cameraGain*meanUniform[i1][i2]) + (cameraGain*meanSpeckle[i1][i2]) + readoutNoiseVariance)) * bandpassFilterSum[i1][i2])
 			i2 += 1
 		bias[i1] = noiseArray	
 		i2 = 0
 		i1 += 1
-		
+	
+	print("BIAS : {}{}".format(bias, type(bias[0][0])))
 	return bias
 
-def noiseInducedBiasReductionFromStdev(noise, stdev, pixel):
-	stdev = stdev - noise[pixel[0]][pixel[1]]
+def noiseInducedBiasReductionFromStdev(noise, stdev):
+	i1 = 0
+	i2 = 0
+	while i1 < noise.shape[0]:
+		while i2 < noise.shape[1]:
+			stdev[i1][i2] = stdev[i1][i2] - noise[i1][i2]
+			i2 += 1
+		i2 = 0
+		i1 += 1
+
 	return stdev
 
 def contrastCalculation(difference, uniform, speckle, samplingWindow, ffilter):
@@ -231,32 +247,21 @@ def contrastCalculation(difference, uniform, speckle, samplingWindow, ffilter):
 	exc.isANumpyArray(uniform)
 	exc.isInt(samplingWindow)
 
-	n = int(samplingWindow/2)
-	pixelPosition = [0,0]
 	contrastFunction = np.zeros(shape=(difference.shape[0], difference.shape[1]), dtype=np.int16)
 	noiseFunction = noiseInducedBias(cameraGain=(30000/65636), readoutNoiseVariance=0.3508935, imageSpeckle=speckle, imageUniform=uniform, fftFilter=ffilter, samplingWindowSize=samplingWindow)
 
-	while pixelPosition[0] < difference.shape[0]:
-		contrastArray = []
+	stdevDifference, meanDifference = stdevAndMeanWholeImage(image=difference, samplingWindow=samplingWindow)
+	stdevUniform, meanUniform = stdevAndMeanWholeImage(image=uniform, samplingWindow=samplingWindow)
+	reducedStdevDifference = noiseInducedBiasReductionFromStdev(noise=noiseFunction, stdev=stdevDifference)
 
-		while pixelPosition[1] < difference.shape[1]:
-			positionInSamplingWindow = [pixelPosition[0]-n, pixelPosition[1]-n]
-			if positionInSamplingWindow[0] < 0:
-				positionInSamplingWindow[0] = 0
-			if positionInSamplingWindow[1] < 0: 
-				positionInSamplingWindow[1] = 0
-	
-			# Calculations of one pixel
-			stdevDifference, meanUniform = stDevAndMeanOnePixel(image1=difference, image2=uniform, halfSamplingWindow=n, pixel=pixelPosition, position=positionInSamplingWindow)
-			reducedStdevDifference = noiseInducedBiasReductionFromStdev(noise=noiseFunction, stdev=stdevDifference, pixel=pixelPosition)
-
-			contrastInSamplingWindow = reducedStdevDifference/meanUniform
-			contrastArray.append(contrastInSamplingWindow)
-			pixelPosition[1] = pixelPosition[1] + 1
-
-		contrastFunction[pixelPosition[0]] = contrastArray
-		pixelPosition[1] = 0
-		pixelPosition[0] = pixelPosition[0] + 1
+	i1 = 0
+	i2 = 0
+	while i1 < stdevDifference.shape[0]:
+		while i2 < stdevDifference.shape[1]:
+			contrastFunction[i1][i2] = reducedStdevDifference[i1][i2]/meanUniform[i1][i2]
+			i2 += 1
+		i2 = 0
+		i1 += 1
 
 	print(contrastFunction)
 	return contrastFunction
