@@ -120,7 +120,6 @@ def squaredFunction(function):
 			function[element] = function[element]**2
 	else:
 		function = function**2
-		print(function)
 
 	return function
 
@@ -259,7 +258,6 @@ def contrastCalculation(difference, uniform, speckle, samplingWindow, ffilter):
 		pixelPosition[1] = 0
 		pixelPosition[0] = pixelPosition[0] + 1
 
-	print(contrastFunction)
 	return contrastFunction
 
 def lowPassFilter(image, sigmaFilter):
