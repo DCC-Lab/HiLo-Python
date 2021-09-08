@@ -4,25 +4,26 @@ import numpy as np
 import tifffile as tiff
 
 # Sigma defines the width of the filter.
-sigmaValue = 2
+sigmaValue = 1
 
 # Step 1 : Subtract uniform from speckled image to for the difference image
-imgSpeckle = fun.image("/Users/valeriepineaunoel/Documents/HiLo-Python/Data/samplespeckle.tif")
-imgUniform = fun.image("/Users/valeriepineaunoel/Documents/HiLo-Python/Data/sampleuniform.tif")
+imgSpeckle = fun.image("/Users/valeriepineaunoel/Documents/HiLo-Python/Data/testBlackImage.tif")
+imgUniform = fun.image("/Users/valeriepineaunoel/Documents/HiLo-Python/Data/testWhiteImage.tif")
 fftUniform = np.fft.fft2(imgUniform)
 imgDiff = fun.differenceImage(speckle=imgSpeckle, uniform=imgUniform)
 
 
 # Step 2 : Frequency bandpass on the difference image. Adjusting its with to tune the width of the sectioning strength
 ## Image in frequency space.
-imgDiffBP = fun.gaussianFilter(sigma=sigmaValue, image=imgDiff)
-bandpassFilter = fun.gaussianFilterOfImage(filteredImage=imgDiffBP, differenceImage=imgDiff)
-fftBandpassFilter = np.fft.fft2(bandpassFilter)
+imgDiffBP, convWindow = fun.gaussianFilter(sigma=sigmaValue, image=imgDiff)
+fftConvWindow = np.fft.fft2(convWindow)
+tiff.imshow(convWindow)
+plt.show()
 
 # Step 3 : Evaluate the weigthing function (squared) according to equation StDev_diff/MeanIntensity_s
 # Step 4 : Removing noise-induced bias from C^2 by subtracting 
 print("I'm calculating the contrast")
-contrast = fun.contrastCalculation(difference=imgDiffBP, uniform=imgUniform, speckle=imgSpeckle, samplingWindow=7, ffilter=fftBandpassFilter) # va être utilisé pour produire le LP
+contrast = fun.contrastCalculation(difference=imgDiffBP, uniform=imgUniform, speckle=imgSpeckle, samplingWindow=3, ffilter=np.fft.fft2(convWindow)) # va être utilisé pour produire le LP
 contrastSquared = fun.squaredFunction(contrast) # va être utilisé pour évaluer n
 print("TYPE DIFF contrast : {}".format(type(contrast[0][0])))
 print("TYPE DIFF contrast : {}".format(type(contrast)))
