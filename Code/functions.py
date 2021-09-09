@@ -1,6 +1,7 @@
 import tifffile as tiff
 import scipy.ndimage as simg
 import numpy as np
+import math as math
 import exceptions as exc
 
 def image(imagepath):
@@ -9,14 +10,129 @@ def image(imagepath):
 	image = tiff.imread(imagepath) 
 	return image
 
-def gaussianFilter(sigma, image):
+def differenceImage(speckle, uniform):
+	exc.isANumpyArray(speckle)
+	exc.isANumpyArray(uniform)
+	exc.isSameShape(image1=speckle, image2=uniform)
+
+	# Subtraction
+	i1 = 0
+	i2 = 0
+	typeOfData = type(speckle[0][0])
+	difference = np.zeros(shape=(speckle.shape[0], speckle.shape[1]), dtype=np.int16)
+	while i1 < speckle.shape[0]:
+		while i2 < speckle.shape[1]:
+			difference[i1][i2] = speckle[i1][i2] - uniform[i1][i2]
+			i2 += 1
+		i2 = 0
+		i1 += 1
+
+	# Find the minimal value
+	minPixel = np.amin(difference)
+
+	# Rescale the data
+	i1 = 0
+	i2 = 0
+	while i1 < difference.shape[0]:
+		while i2 < difference.shape[1]:
+			difference[i1][i2] = difference[i1][i2] + abs(minPixel)
+			i2 += 1
+		i2 = 0
+		i1 += 1
+
+	return difference
+
+def createOTF(image):
+	"""Optical transfer function is the fft of the PSF. The modulation transfer function is the magnitude of the complex OTF."""
+	pixels = np.zeros(shape=(image.shape[0], image.shape[1]), dtype=np.int16)
+	x = 0
+	y = 0
+	while x < image.shape[0]:
+		while y < image.shape[1]:
+			x1 = ((2*x-image.shape[0])*np.pi)/image.shape[0]
+			y1 = ((2*y-image.shape[1])*np.pi)/image.shape[1]
+			if x1 != 0 and y1 != 0:
+				pixel[x][y] = (math.sin(x1)*math.sin(y1))/(x1*y1)
+			elif x1 == 0 and y1 != 0: 
+				pixel[x][y] = math.sin(y1)/y1
+			elif x1 != 0 and y1 == 0:
+				pixel[x][y] = math.sin(x1)/x1
+			elif x1 != 0 and y1 != 0:
+				pixel[x][y] = 1
+			if pixel[x][y] < 0:
+				pixel[x][y] = 0
+			y += 1
+		y = 0
+		x += 1
+
+	return pixels
+
+def createBandpassFilterInFourierSpace(image, sigma, waveletGaussianRatio=2):
+	# NOT FINISHED !!! RETURNS AN EMPTY LIST???
+	sizeX = image.shape[0]
+	sizeY = image.shape[1]
+	bigFilterConstant = -(2*np.pi/sizeX)*(2*np.pi/sizeY)*(sigma**2)
+	smallFilterConstant = -(2*np.pi/sizeX)*(2*np.pi/sizeY)*(sigma**2)*(waveletGaussianRatio**2)
+
+	x = 0
+	y = 0
+	while x < sizeX:
+		while y < sizeY:
+			radial2Pixel = (x+0.5-sizeX/2)**2 + (y+0.5-sizeY/2)**2
+			bigFilterPixel = math.exp(bigFilterConstant*radial2Pixel)
+			smallFilterPixel = math.exp(smallFilterConstant*radial2Pixel)
+			bigFilterPixel = bigFilterPixel - smallFilterPixel
+
+
+def gaussianImage(image, sigmaFilter, hilo=True):
 	exc.isANumpyArray(image)
-	exc.isDefined(sigma)
-	exc.isDefined(image)
+	exc.isIntOrFloat(sigmaFilter)
+
+	# hilo is True by default. Only when the image produced is the LO filter. If this function is used to produce the convolution window of the gaussain filter (or any other filter), hilo=False.
+	if hilo is True: 
+		sigma = (sigmaFilter*0.18)/(2*math.sqrt(2*math.log(2)))
+	else:
+		sigma = sigmaFilter
+
+	x, y = np.meshgrid(np.linspace(-1,1,image.shape[0], dtype=np.int8), np.linspace(-1,1,image.shape[1], dtype=np.int8))
+	d = np.sqrt(x*x+y*y)
+	mu = 0.0
+	gauss = (1/(sigma*2*np.pi)) * np.exp(-((d-mu)**2/(2.0*sigma**2)))
+	print("GAUSS : {}".format(gauss))
+
+	return gauss
+
+def gaussianFilter(sigma, image, truncate=4.0):
+	exc.isANumpyArray(image)
 	exc.isIntOrFloat(sigma)
 
-	imgGaussian = simg.gaussian_filter(image, sigma=sigma)
-	return imgGaussian
+	imgGaussian = simg.gaussian_filter(image, sigma=sigma, truncate=truncate) 
+	# POURQUOI C'EST PAS DE LA TAILLE QUE JE VEUX rrrr
+	windowSize = 2*int(truncate*sigma + 0.5) + 1
+	print("window size : {}".format(windowSize))
+	window = np.zeros(shape=(windowSize, windowSize), dtype=np.int16)
+	convolutionWindow = gaussianImage(image=window, sigmaFilter=sigma, hilo=False)
+
+	return imgGaussian, convolutionWindow
+
+# def gaussianFilterOfImage(filteredImage, differenceImage):
+# 	exc.isANumpyArray(filteredImage)
+# 	exc.isANumpyArray(differenceImage)
+# 	exc.isSameShape(image1=filteredImage, image2=differenceImage)
+
+# 	bandpassFilter = filteredImage - differenceImage
+# 	minValue = np.amin(bandpassFilter)
+
+# 	i1 = 0
+# 	i2 = 0
+# 	while i1 < filteredImage.shape[0]:
+# 		while i2 < filteredImage.shape[1]:
+# 			bandpassFilter[i1][i2] = bandpassFilter[i1][i2] + abs(minValue)
+# 			i2 += 1
+# 		i2 = 0
+# 		i1 += 1
+
+	# return bandpassFilter
 
 def valueOnePixel(image, pixelPosition):
 	value = image[pixelPosition[0]][pixelPosition[1]]
@@ -24,127 +140,119 @@ def valueOnePixel(image, pixelPosition):
 		value = 0
 	return value
 
-def valueAllPixels(image):
-	pixel = [0,0]
-	values = np.zeros(shape=(image.shape[0], image.shape[1]))
-	while pixel[0] < image.shape[0]:
-		while pixel[1] < image.shape[1]:
-			valuePixel = valueOnePixel(image=image, pixelPosition=pixel)
-			values[pixel[0]][pixel[1]] = valuePixel
-			pixel[1] = pixel[1] + 1
-		pixel[1] = 0
-		pixel[0] = pixel[0] + 1
+def valueAllPixelsInImage(image):
+	position = [0,0]
+	values = []
+	while position[0] < image.shape[0]:
+		while position[1] < image.shape[1]:
+			values.append(valueOnePixel(image=image, pixelPosition=position))
+			position[1] += 1
+				
+		position[0] = position[0] + 1
+
+	return values
+
+def valueAllPixelsInSW(image, px, samplingWindow):
+	n = int(samplingWindow/2)
+	positionInSW = [px[0]-n, px[1]-n]
+
+	values = []
+	while positionInSW[0] <= px[0]+n and positionInSW[0] < image.shape[0]:
+		if positionInSW[0] < 0:
+			positionInSW[0] = 0
+		while positionInSW[1] <= px[1]+n and positionInSW[1] < image.shape[1]:
+			if positionInSW[1] < 0:  
+				positionInSW[1] = 0
+			values.append(valueOnePixel(image=image, pixelPosition=positionInSW))
+			positionInSW[1] += 1
+				
+		positionInSW[1] = px[1] - n
+		positionInSW[0] = positionInSW[0] + 1
+
 	return values
 
 def absSumAllPixels(function):
-	exc.isANumpyArray(function)
+	i1 = 0
+	i2 = 0
+	if type(function) is np.ndarray:
+		while i1 < function.shape[0]:
+			while i2 < function.shape[1]: 
+				if type(function[i1][i2]) is np.complex128:
+					function[i1][i2] = np.absolute(function[i1][i2])
+				else : 
+					function[i1][i2] = abs(function[i1][i2])
+				i2 += 1
+			i2 = 0
+			i1 += 1 
+		sumValue = np.sum(function)
 
-	element1 = 0
-	element2 = 0
-	while element1 < function.shape[0]:
-		while element2 < function.shape[1]: 
-			if type(function[element1][element2]) is np.complex128:
-				function[element1][element2] = np.absolute(function[element1][element2])
+	elif type(function) is list:
+		for i in range(len(function)):
+			if type(function[i]) is np.complex128:
+				function[i] = np.absolute(function[i])
 			else : 
-				function[element1][element2] = abs(function[element1][element2])
-			element2 += 1
-		element2 = 0
-		element1 += 1 
-	sumValue = np.sum(function)
-	print("SUM VALUE : {}".format(sumValue))
+				function[i] = abs(function[i])
+		sumValue = sum(function)
+
+	else:
+		if type(function) is np.complex128:
+			function = np.absolute(function)
+		else : 
+			function = abs(function)
+		sumValue = sum(function)
 
 	return sumValue
 
 def squaredFunction(function):
 	if type(function) is np.ndarray:
-		element1 = 0
-		element2 = 0
-		while element1 < function.shape[0] : 
-			while element2 < function.shape[1]:
-				value = function[element1][element2]
-				function[element1][element2] = value**2
-				element2 += 1
-				print("ça square")
-			element2 = 0
-			element1 += 1
+		i1 = 0
+		i2 = 0
+		while i1 < function.shape[0] : 
+			while i2 < function.shape[1]:
+				value = function[i1][i2]
+				function[i1][i2] = value**2
+				i2 += 1
+			i2 = 0
+			i1 += 1
 	elif type(function) is list:
 		for element in function:
 			function[element] = function[element]**2
 	else:
 		function = function**2
-		print(function)
 
 	return function
 
-def stDevAndMeanOnePixel(image1, halfSamplingWindow, pixel, position, image2=None): 
-	exc.isDefined(image1)
-	exc.isDefined(halfSamplingWindow)
-	exc.isDefined(pixel)
-	exc.isDefined(position)
-	exc.isANumpyArray(image1)
-	if image2 is not None : 
-		exc.isANumpyArray(image2)
-	exc.isInt(halfSamplingWindow)
+def stDevAndMeanOnePixel(image, sw, pixel): 
+	exc.isANumpyArray(image)
+	exc.isInt(sw)
 
 	if type(pixel) is not list or len(pixel) != 2:
 		raise Exception("pixel must be a list of two int.")
 	 
-	valuesImg1 = []
-	valuesImg2 = []
-	while position[0] <= pixel[0]+halfSamplingWindow and position[0] < image1.shape[0]:
-				if position[0] < 0:
-					position[0] = 0
-				while position[1] <= pixel[1]+halfSamplingWindow and position[1] < image1.shape[1]:
-					valuePixel1 = valueOnePixel(image = image1, pixelPosition = position)
-					valuesImg1.append(valuePixel1)
-						
-					if image2 is not None : 	
-						valuePixel2 = valueOnePixel(image = image2, pixelPosition = position)
-						valuesImg2.append(valuePixel2)
-				
-					position[1] += 1
-				
-				position[1] = pixel[1] - halfSamplingWindow
-				if position[1] < 0: 
-					position[1] = 0
+	valuesOfPixelInSamplingWindow = valueAllPixelsInSW(image=image, px=pixel, samplingWindow=sw)
+	std, mean = np.std(valuesOfPixelInSamplingWindow), np.mean(valuesOfPixelInSamplingWindow) 
 
-				position[0] = position[0] + 1
-
-	if image2 is not None : 
-		std, mean = np.std(valuesImg1), np.mean(valuesImg2) 
-	else: 
-		std, mean = np.std(valuesImg1), np.mean(valuesImg1)
-		
 	return std, mean
 
 def stdevAndMeanWholeImage(image, samplingWindow):
 	exc.isANumpyArray(image)
 	exc.isInt(samplingWindow)
 
-	n = int(samplingWindow/2)
-	pixelPosition = [0,0]
-	stDevImage = np.zeros(shape=(image.shape[0], image.shape[1]))
-	meanImage = np.zeros(shape=(image.shape[0], image.shape[1]))
-
-	while pixelPosition[0] < image.shape[0]:
-		stDevArray = []
-		meanArray = []
-
-		while pixelPosition[1] < image.shape[1]:
-			positionInSamplingWindow = [pixelPosition[0]-n, pixelPosition[1]-n]
-			if positionInSamplingWindow[0] < 0:
-				positionInSamplingWindow[0] = 0
-			if positionInSamplingWindow[1] < 0: 
-				positionInSamplingWindow[1] = 0
+	stDevImage = np.zeros(shape=(image.shape[0], image.shape[1]), dtype=np.int16)
+	meanImage = np.zeros(shape=(image.shape[0], image.shape[1]), dtype=np.int16)
 	
+	pixelPosition = [0,0]
+	while pixelPosition[0] < image.shape[0]:
+		stdevArray = []
+		meanArray = []
+		while pixelPosition[1] < image.shape[1]:
 			# Calculations of one pixel
-			stdev, mean = stDevAndMeanOnePixel(image1=image, halfSamplingWindow=n, pixel=pixelPosition, position=positionInSamplingWindow)
-				
-			stDevArray.append(stdev)
+			stdev, mean = stDevAndMeanOnePixel(image=image, sw=samplingWindow, pixel=pixelPosition)
+			stdevArray.append(stdev)
 			meanArray.append(mean)
 			pixelPosition[1] = pixelPosition[1] + 1
 
-		stDevImage[pixelPosition[0]] = stDevArray
+		stDevImage[pixelPosition[0]] = stdevArray
 		meanImage[pixelPosition[0]] = meanArray
 		pixelPosition[1] = 0
 		pixelPosition[0] = pixelPosition[0] + 1
@@ -161,26 +269,63 @@ def noiseInducedBias(cameraGain, readoutNoiseVariance, imageSpeckle, imageUnifor
 
 	stdevSpeckle, meanSpeckle = stdevAndMeanWholeImage(image=imageSpeckle, samplingWindow=samplingWindowSize)
 	stdevUniform, meanUniform = stdevAndMeanWholeImage(image=imageUniform, samplingWindow=samplingWindowSize)
-	valuesFFTFilter = valueAllPixels(image=fftFilter)
-	absfftFilter = absSumAllPixels(function=valuesFFTFilter)
-	squaredAbsFilter = squaredFunction(function=absfftFilter)
 
-	element1 = 0
-	element2 = 0
-	bias = np.zeros(shape=(imageSpeckle.shape[0], imageSpeckle.shape[1]))
-	while element1 < meanUniform.shape[0]:
+	valueConv = valueAllPixelsInImage(image=fftFilter)
+	absSumValueConv = absSumAllPixels(function=valueConv)
+	squaredAbsSumValueConv = squaredFunction(function=absSumValueConv)
+	print(squaredAbsSumValueConv)
+
+
+	# 
+	# pixelPosition = [0,0]
+	# bandpassFilterSum = np.zeros(shape=(fftFilter.shape[0], fftFilter.shape[1]), dtype=np.int16)
+	
+	# while pixelPosition[0] < fftFilter.shape[0]:
+	# 	noiseArray = []
+	# 	while pixelPosition[1] < fftFilter.shape[1]:
+	# 		# Values of all pixels contained in one sampling window
+	# 		valuesFFTFilter = valueAllPixels(image=fftFilter, px=pixelPosition, samplingWindow=samplingWindowSize)
+	# 		print("VALUE PIXEL : {}{}".format(valuesFFTFilter[0], type(valuesFFTFilter[0])))
+	# 		# abs and squared of all of those values
+	# 		valuesFFTFilterSum = absSumAllPixels(function=valuesFFTFilter)
+	# 		print("VALUE PIXEL SUM ABS : {}{}".format(valuesFFTFilterSum, type(valuesFFTFilterSum)))
+	# 		valuesFFTFilterSumSquared = squaredFunction(function=valuesFFTFilterSum)
+	# 		print("VALUE PIXEL SUM ABS SQUARED : {}{}".format(valuesFFTFilterSumSquared, type(valuesFFTFilterSumSquared)))
+	# 		noiseArray.append(valuesFFTFilterSum)
+	# 		pixelPosition[1] += 1
+
+	# 	bandpassFilterSum[pixelPosition[0]] = noiseArray
+	# 	pixelPosition[1] = 0
+	# 	pixelPosition[0] += 1
+
+	# print("BANDPASSFILTER {}{}".format(bandpassFilterSum[0][0], type(bandpassFilterSum[0][0])))
+
+	# Calculate the noise-induced biased function.  
+	i1 = 0
+	i2 = 0
+	bias = np.zeros(shape=(imageSpeckle.shape[0], imageSpeckle.shape[1]), dtype=np.int16)
+	while i1 < meanUniform.shape[0]:
 		noiseArray = []
-		while element2 < meanUniform.shape[1]:
-			noiseArray.append((((cameraGain*meanUniform[element1][element2]) + (cameraGain*meanSpeckle[element1][element2]) + readoutNoiseVariance)) * squaredAbsFilter)
-			element2 += 1
-		bias[element1] = noiseArray	
-		element2 = 0
-		element1 += 1
-		
+		while i2 < meanUniform.shape[1]:
+			noiseArray.append((((cameraGain*meanUniform[i1][i2]) + (cameraGain*meanSpeckle[i1][i2]) + readoutNoiseVariance)) * squaredAbsSumValueConv)
+			i2 += 1
+		bias[i1] = noiseArray	
+		i2 = 0
+		i1 += 1
+	
+	print("BIAS : {}{}".format(bias, type(bias[0][0])))
 	return bias
 
-def noiseInducedBiasReductionFromStdev(noise, stdev, pixel):
-	stdev = stdev - noise[pixel[0]][pixel[1]]
+def noiseInducedBiasReductionFromStdev(noise, stdev):
+	i1 = 0
+	i2 = 0
+	while i1 < noise.shape[0]:
+		while i2 < noise.shape[1]:
+			stdev[i1][i2] = stdev[i1][i2] - noise[i1][i2]
+			i2 += 1
+		i2 = 0
+		i1 += 1
+
 	return stdev
 
 def contrastCalculation(difference, uniform, speckle, samplingWindow, ffilter):
@@ -188,39 +333,30 @@ def contrastCalculation(difference, uniform, speckle, samplingWindow, ffilter):
 	exc.isANumpyArray(uniform)
 	exc.isInt(samplingWindow)
 
-	n = int(samplingWindow/2)
-	pixelPosition = [0,0]
-	contrastFunction = np.zeros(shape=(difference.shape[0], difference.shape[1]))
+	contrastFunction = np.zeros(shape=(difference.shape[0], difference.shape[1]), dtype=np.int16)
 	noiseFunction = noiseInducedBias(cameraGain=(30000/65636), readoutNoiseVariance=0.3508935, imageSpeckle=speckle, imageUniform=uniform, fftFilter=ffilter, samplingWindowSize=samplingWindow)
 
-	while pixelPosition[0] < difference.shape[0]:
-		contrastArray = []
+	stdevDifference, meanDifference = stdevAndMeanWholeImage(image=difference, samplingWindow=samplingWindow)
+	stdevUniform, meanUniform = stdevAndMeanWholeImage(image=uniform, samplingWindow=samplingWindow)
+	reducedStdevDifference = noiseInducedBiasReductionFromStdev(noise=noiseFunction, stdev=stdevDifference)
 
-		while pixelPosition[1] < difference.shape[1]:
-			positionInSamplingWindow = [pixelPosition[0]-n, pixelPosition[1]-n]
-			if positionInSamplingWindow[0] < 0:
-				positionInSamplingWindow[0] = 0
-			if positionInSamplingWindow[1] < 0: 
-				positionInSamplingWindow[1] = 0
-	
-			# Calculations of one pixel
-			stdevDifference, meanUniform = stDevAndMeanOnePixel(image1=difference, image2=uniform, halfSamplingWindow=n, pixel=pixelPosition, position=positionInSamplingWindow)
-			reducedStdevDifference = noiseInducedBiasReductionFromStdev(noise=noiseFunction, stdev=stdevDifference, pixel=pixelPosition)
-			print("REDUCTION du noise : {}".format(reducedStdevDifference))
+	i1 = 0
+	i2 = 0
+	while i1 < stdevDifference.shape[0]:
+		while i2 < stdevDifference.shape[1]:
+			contrastFunction[i1][i2] = reducedStdevDifference[i1][i2]/meanUniform[i1][i2]
+			i2 += 1
+		i2 = 0
+		i1 += 1
 
-			contrastInSamplingWindow = reducedStdevDifference/meanUniform
-			print("CONTRAST D'UN PIXEL : {}".format(contrastInSamplingWindow))
-			contrastArray.append(contrastInSamplingWindow)
-			pixelPosition[1] = pixelPosition[1] + 1
-
-		contrastFunction[pixelPosition[0]] = contrastArray
-		pixelPosition[1] = 0
-		pixelPosition[0] = pixelPosition[0] + 1
-
+	print("CONTRAST FUNCTION : {}{}".format(contrastFunction[0][0], type(contrastFunction[0][0])))
 	return contrastFunction
 
+def highPassFilter(low):
+	exc.isANumpyArray(low)
 
-
+	hi = 1 - low
+	return hi
 
 
 
