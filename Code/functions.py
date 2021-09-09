@@ -42,6 +42,48 @@ def differenceImage(speckle, uniform):
 
 	return difference
 
+def createOTF(image):
+	"""Optical transfer function is the fft of the PSF. The modulation transfer function is the magnitude of the complex OTF."""
+	pixels = np.zeros(shape=(image.shape[0], image.shape[1]), dtype=np.int16)
+	x = 0
+	y = 0
+	while x < image.shape[0]:
+		while y < image.shape[1]:
+			x1 = ((2*x-image.shape[0])*np.pi)/image.shape[0]
+			y1 = ((2*y-image.shape[1])*np.pi)/image.shape[1]
+			if x1 != 0 and y1 != 0:
+				pixel[x][y] = (math.sin(x1)*math.sin(y1))/(x1*y1)
+			elif x1 == 0 and y1 != 0: 
+				pixel[x][y] = math.sin(y1)/y1
+			elif x1 != 0 and y1 == 0:
+				pixel[x][y] = math.sin(x1)/x1
+			elif x1 != 0 and y1 != 0:
+				pixel[x][y] = 1
+			if pixel[x][y] < 0:
+				pixel[x][y] = 0
+			y += 1
+		y = 0
+		x += 1
+
+	return pixels
+
+def createBandpassFilterInFourierSpace(image, sigma, waveletGaussianRatio=2):
+	# NOT FINISHED !!! RETURNS AN EMPTY LIST???
+	sizeX = image.shape[0]
+	sizeY = image.shape[1]
+	bigFilterConstant = -(2*np.pi/sizeX)*(2*np.pi/sizeY)*(sigma**2)
+	smallFilterConstant = -(2*np.pi/sizeX)*(2*np.pi/sizeY)*(sigma**2)*(waveletGaussianRatio**2)
+
+	x = 0
+	y = 0
+	while x < sizeX:
+		while y < sizeY:
+			radial2Pixel = (x+0.5-sizeX/2)**2 + (y+0.5-sizeY/2)**2
+			bigFilterPixel = math.exp(bigFilterConstant*radial2Pixel)
+			smallFilterPixel = math.exp(smallFilterConstant*radial2Pixel)
+			bigFilterPixel = bigFilterPixel - smallFilterPixel
+
+
 def gaussianImage(image, sigmaFilter, hilo=True):
 	exc.isANumpyArray(image)
 	exc.isIntOrFloat(sigmaFilter)
