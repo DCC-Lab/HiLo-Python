@@ -7,28 +7,25 @@ import tifffile as tiff
 sigmaValue = 1
 
 # Step 1 : Subtract uniform from speckled image to for the difference image
-imgSpeckle = fun.image("/Users/valeriepineaunoel/Documents/HiLo-Python/Data/testBlackImage.tif")
-imgUniform = fun.image("/Users/valeriepineaunoel/Documents/HiLo-Python/Data/testWhiteImage.tif")
-fftUniform = np.fft.fft2(imgUniform)
-imgDiff = fun.differenceImage(speckle=imgSpeckle, uniform=imgUniform)
+imgSpeckle = fun.createImage("/Users/valeriepineaunoel/Documents/HiLo-Python/Data/20210306-SpeckleRhodamineETL-NoETL-S-6-Cropped.tif")
+imgUniform = fun.createImage("/Users/valeriepineaunoel/Documents/HiLo-Python/Data/20210306-SpeckleRhodamineETL-NoETL-U-6-Cropped.tif")
+imgDiff = fun.createDifferenceImage(speckle=imgSpeckle, uniform=imgUniform)
 
 
 # Step 2 : Frequency bandpass on the difference image. Adjusting its with to tune the width of the sectioning strength
 ## Image in frequency space.
-imgDiffBP, convWindow = fun.gaussianFilter(sigma=sigmaValue, image=imgDiff)
-fftConvWindow = np.fft.fft2(convWindow)
-tiff.imshow(convWindow)
-plt.show()
+# imgDiffBP = fun.gaussianFilter(sigma=sigmaValue, image=imgDiff)
+# gaussImage = fun.obtainFFTFitler(image=imgUniform, filteredImage=imgDiffBP)
 
 # Step 3 : Evaluate the weigthing function (squared) according to equation StDev_diff/MeanIntensity_s
 # Step 4 : Removing noise-induced bias from C^2 by subtracting 
 print("I'm calculating the contrast")
-contrast = fun.contrastCalculation(difference=imgDiffBP, uniform=imgUniform, speckle=imgSpeckle, samplingWindow=3, ffilter=np.fft.fft2(convWindow)) # va être utilisé pour produire le LP
-contrastSquared = fun.squaredFunction(contrast) # va être utilisé pour évaluer n
-print("TYPE DIFF contrast : {}".format(type(contrast[0][0])))
-print("TYPE DIFF contrast : {}".format(type(contrast)))
-print("TYPE OF contrastSquared : {}".format(type(contrastSquared[0][0])))
-print("TYPE OF contrastSquared : {}".format(type(contrastSquared)))
+contrast = fun.contrastCalculation(uniform=imgUniform, speckle=imgSpeckle, samplingWindow=3, sigma=sigmaValue) # va être utilisé pour produire le LP
+# contrastSquared = fun.squaredFunction(contrast) # va être utilisé pour évaluer n
+# print("TYPE DIFF contrast : {}".format(type(contrast[0][0])))
+# print("TYPE DIFF contrast : {}".format(type(contrast)))
+# print("TYPE OF contrastSquared : {}".format(type(contrastSquared[0][0])))
+# print("TYPE OF contrastSquared : {}".format(type(contrastSquared)))
 
 # # Step 5 : construct LP and HP filters according to the W defined at step 2
 # # imgDiffFrequency = np.fft.fft2(imgDiff) # produit des nombres complexes. Ne peux pas être affiché à moins d'utiliser np.abs(fft)
