@@ -84,10 +84,24 @@ def obtainFFTFitler(image, filteredImage):
 	exc.isANumpyArray(filteredImage)
 	exc.isSameShape(image1=image, image2=filteredImage)
 
+	sw = 3
+	pixel = [0,0]
 	fftImage = np.fft.fft2(image)
 	fftFilteredImage = np.fft.fft2(filteredImage)
 	fftFilter = np.divide(fftFilteredImage, fftImage)
-	return fftFilter
+
+	valuesOfFilter = np.zeros(shape=(image.shape[0], image.shape[1]))
+	while pixel[0] < fftFilter.shape[0]:
+		while pixel[1] < fftFilter.shape[1]:
+			valuesInSW = valueAllPixelsInSW(image=fftFilter, px=pixel, samplingWindow=sw)
+			sumInSW = np.sum(np.absolute(valuesInSW))**2
+			valuesOfFilter[pixel[0]][pixel[1]] = sumInSW
+			pixel[1] += 1
+		pixel[1] = 0
+		pixel[0] += 1 
+
+	print("VALUES SUM IN SW FFT FILTER : {}{}".format(valuesOfFilter, valuesOfFilter.dtype))
+	return valuesOfFilter
 
 def gaussianFilter(sigma, image, truncate=4.0):
 	exc.isANumpyArray(image)
@@ -177,8 +191,8 @@ def squaredFunction(array):
 			i2 = 0
 			i1 += 1
 	elif type(array) is list:
-		for element in array:
-			array[element] = array[element]**2
+		for i in array:
+			array[i] = array[i]**2
 	else:
 		array = array**2
 
@@ -236,9 +250,7 @@ def noiseInducedBias(cameraGain, readoutNoiseVariance, imageSpeckle, imageUnifor
 	# print("STDEV U : {}{}".format(stdevUniform, stdevUniform.dtype))
 
 	fftFilter = obtainFFTFitler(image=imageUniform, filteredImage=difference)
-	sumAbsfftFilter = absSumAllPixels(array=fftFilter)
-	squaredSumAbsfftFilter = squaredFunction(array=sumAbsfftFilter)
-	print("SQUARED : {}".format(squaredSumAbsfftFilter))
+	
 	# Calculate the noise-induced biased function. 
 	i1 = 0
 	i2 = 0
@@ -246,7 +258,7 @@ def noiseInducedBias(cameraGain, readoutNoiseVariance, imageSpeckle, imageUnifor
 	while i1 < meanUniform.shape[0]:
 		noiseArray = []
 		while i2 < meanUniform.shape[1]:
-			noiseArray.append(((np.sqrt(cameraGain*meanUniform[i1][i2]) + (cameraGain*meanSpeckle[i1][i2]) + readoutNoiseVariance) * squaredSumAbsfftFilter))
+			noiseArray.append(((np.sqrt(cameraGain*meanUniform[i1][i2]) + (cameraGain*meanSpeckle[i1][i2]) + readoutNoiseVariance) * fftFilter[i1][i2]))
 			i2 += 1
 		bias[i1] = noiseArray	
 		i2 = 0
