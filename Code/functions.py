@@ -84,24 +84,14 @@ def obtainFFTFitler(image, filteredImage):
 	exc.isANumpyArray(filteredImage)
 	exc.isSameShape(image1=image, image2=filteredImage)
 
-	sw = 3
-	pixel = [0,0]
+	#normImage = np.divide(image, 2**16-1)
+	#print("NEW IMAGE : {}{}".format(normImage, normImage.dtype))
 	fftImage = np.fft.fft2(image)
 	fftFilteredImage = np.fft.fft2(filteredImage)
 	fftFilter = np.divide(fftFilteredImage, fftImage)
+	normfftFilter = np.divide(fftFilter, np.amax(fftFilter))/fftFilter.shape[0]/fftFilter.shape[1]
 
-	valuesOfFilter = np.zeros(shape=(image.shape[0], image.shape[1]))
-	while pixel[0] < fftFilter.shape[0]:
-		while pixel[1] < fftFilter.shape[1]:
-			valuesInSW = valueAllPixelsInSW(image=fftFilter, px=pixel, samplingWindow=sw)
-			sumInSW = np.sum(np.absolute(valuesInSW))**2
-			valuesOfFilter[pixel[0]][pixel[1]] = sumInSW
-			pixel[1] += 1
-		pixel[1] = 0
-		pixel[0] += 1 
-
-	print("VALUES SUM IN SW FFT FILTER : {}{}".format(valuesOfFilter, valuesOfFilter.dtype))
-	return valuesOfFilter
+	return normfftFilter
 
 def gaussianFilter(sigma, image, truncate=4.0):
 	exc.isANumpyArray(image)
@@ -250,6 +240,8 @@ def noiseInducedBias(cameraGain, readoutNoiseVariance, imageSpeckle, imageUnifor
 	# print("STDEV U : {}{}".format(stdevUniform, stdevUniform.dtype))
 
 	fftFilter = obtainFFTFitler(image=imageUniform, filteredImage=difference)
+	sumAbsFftFilter = absSumAllPixels(array=fftFilter)
+	squaredSumAbsFftFilter = squaredFunction(array=sumAbsFftFilter)
 	
 	# Calculate the noise-induced biased function. 
 	i1 = 0
@@ -258,13 +250,12 @@ def noiseInducedBias(cameraGain, readoutNoiseVariance, imageSpeckle, imageUnifor
 	while i1 < meanUniform.shape[0]:
 		noiseArray = []
 		while i2 < meanUniform.shape[1]:
-			noiseArray.append(((np.sqrt(cameraGain*meanUniform[i1][i2]) + (cameraGain*meanSpeckle[i1][i2]) + readoutNoiseVariance) * fftFilter[i1][i2]))
+			noiseArray.append(((np.sqrt(cameraGain*meanUniform[i1][i2]) + (cameraGain*meanSpeckle[i1][i2]) + readoutNoiseVariance) * squaredSumAbsFftFilter))
 			i2 += 1
 		bias[i1] = noiseArray	
 		i2 = 0
 		i1 += 1
 	
-	print("BIAS : {}{}".format(bias, type(bias[0][0])))
 	return bias
 
 def noiseInducedBiasReductionFromStdev(noise, stdev):
@@ -290,16 +281,14 @@ def contrastCalculation(uniform, speckle, samplingWindow, sigma):
 	gaussianImage = gaussianFilter(sigma=sigma, image=differenceImage)
 
 	# calculate the noise-induced bias of the image
-	noiseFunction = noiseInducedBias(cameraGain=1, readoutNoiseVariance=0.3508935, imageSpeckle=speckle, imageUniform=uniform, difference=gaussianImage, samplingWindowSize=samplingWindow, sigma=sigma)
+	noiseFunction = noiseInducedBias(cameraGain=0.45776, readoutNoiseVariance=0.3508935, imageSpeckle=speckle, imageUniform=uniform, difference=gaussianImage, samplingWindowSize=samplingWindow, sigma=sigma)
 
 	# calculate the stdev and the mean of the speckle and the uniform image
 	stdevDifference, meanDifference = stdevAndMeanWholeImage(image=gaussianImage, samplingWindow=samplingWindow)
 	stdevUniform, meanUniform = stdevAndMeanWholeImage(image=uniform, samplingWindow=samplingWindow)
-	print("STDEV DIFFERENCE : {}{}".format(stdevDifference, stdevDifference.dtype))
 
 	# subtract the noise-induced bias from the stdev of the filtered difference image
 	reducedStdevDifference = noiseInducedBiasReductionFromStdev(noise=noiseFunction, stdev=stdevDifference)
-	print("REDUCED : {}{}".format(reducedStdevDifference, reducedStdevDifference.dtype))
 
 	# calculate the contrast function
 	i1 = 0
@@ -312,7 +301,7 @@ def contrastCalculation(uniform, speckle, samplingWindow, sigma):
 		i2 = 0
 		i1 += 1
 
-	print("CONTRAST FUNCTION : {}{}".format(contrastFunction, contrastFunction.dtype))
+	print("CONTRAST FUNCTION : {}{}{}".format(contrastFunction, contrastFunction.dtype, np.amax(contrastFunction)))
 	return contrastFunction
 
 def highPassFilter(low):
@@ -320,8 +309,3 @@ def highPassFilter(low):
 
 	hi = 1 - low
 	return hi
-
-
-
-
-
