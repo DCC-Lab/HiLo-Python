@@ -323,6 +323,20 @@ def contrastCalculation(uniform, speckle, samplingWindow, sigma):
 	print("CONTRAST FUNCTION : {}{}".format(contrastFunction, contrastFunction.dtype))
 	return contrastFunction
 
+def lowPassFilter(image, sigmaFilter):
+	exc.isANumpyArray(image)
+	exc.isIntOrFloat(sigmaFilter)
+
+	x, y = np.meshgrid(np.linspace(-1,1,image.shape[0]), np.linspace(-1,1,image.shape[1]))
+	d = np.sqrt(x*x+y*y)
+	sigma = (sigmaFilter*0.18)/(2*math.sqrt(2*math.log(2)))
+	mu = 0.0
+	gauss = (1/(sigma*2*np.pi)) * np.exp(-((d-mu)**2/(2.0*sigma**2)))
+	maxPixel = np.amax(gauss)
+	gaussNorm = gauss/maxPixel
+
+	return gaussNorm
+
 def highPassFilter(low):
 	exc.isANumpyArray(low)
 
@@ -352,7 +366,7 @@ def estimateEta(speckle, uniform, sigma):
 		x += 1
 	eta1 = math.sqrt(numerator / denominator) * 1.2
 
-	eta2 = math.sqrt( illuminationOTF /  ( (bandpassFilter * detectionOTF * camOTF)^2 * np.absolute(illuminationOTF) ) )
+	eta2 = math.sqrt( illuminationOTF /  ( (bandpassFilter * detectionOTF * camOTF)**2 * np.absolute(illuminationOTF) ) )
 
 	return eta1, eta2
 
