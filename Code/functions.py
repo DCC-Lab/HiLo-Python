@@ -90,7 +90,7 @@ def imagingOTF(numAperture, wavelength, magnification, pixelSize, image):
 	y = 0
 	while x<sizex:
 		while y<sizey:
-			pixel[x][y] = math.sqrt((x+0.5-sizex/2)**2 / (sizex/2-1)**2 + (y+0.5-sizey/2)**2 / (sizey/2-1)**2)*scaleUnits
+			pixel[x][y] = math.sqrt(((x+0.5-sizex/2)**2 / (sizex/2-1)**2) + ((y+0.5-sizey/2)**2 / (sizey/2-1)**2))*scaleUnits
 			if pixel[x][y] > 1:
 				pixel[x][y] = 1
 			pixel[x][y] = 0.6366197723675814 * math.acos(pixel[x][y]) - pixel[x][y] * math.sqrt(1-pixel[x][y]*pixel[x][y])
@@ -303,11 +303,9 @@ def contrastCalculation(uniform, speckle, samplingWindow, sigma):
 	# calculate the stdev and the mean of the speckle and the uniform image
 	stdevDifference, meanDifference = stdevAndMeanWholeImage(image=gaussianImage, samplingWindow=samplingWindow)
 	stdevUniform, meanUniform = stdevAndMeanWholeImage(image=uniform, samplingWindow=samplingWindow)
-	print("STDEV DIFFERENCE : {}{}".format(stdevDifference, stdevDifference.dtype))
 
 	# subtract the noise-induced bias from the stdev of the filtered difference image
 	reducedStdevDifference = noiseInducedBiasReductionFromStdev(noise=noiseFunction, stdev=stdevDifference)
-	print("REDUCED : {}{}".format(reducedStdevDifference, reducedStdevDifference.dtype))
 
 	# calculate the contrast function
 	i1 = 0
@@ -323,7 +321,7 @@ def contrastCalculation(uniform, speckle, samplingWindow, sigma):
 	print("CONTRAST FUNCTION : {}{}".format(contrastFunction, contrastFunction.dtype))
 	return contrastFunction
 
-def lowPassFilter(image, sigmaFilter):
+def lowpassFilter(image, sigmaFilter):
 	exc.isANumpyArray(image)
 	exc.isIntOrFloat(sigmaFilter)
 
@@ -337,7 +335,7 @@ def lowPassFilter(image, sigmaFilter):
 
 	return gaussNorm
 
-def highPassFilter(low):
+def highpassFilter(low):
 	exc.isANumpyArray(low)
 
 	hi = 1 - low
@@ -352,6 +350,8 @@ def estimateEta(speckle, uniform, sigma):
 	detectionOTF = imagingOTF(numAperture=1, wavelength=520, magnification=20, pixelSize=0.333, image=uniform)
 	camOTF = cameraOTF(image=uniform)
 	print("ILL : {}{}".format(illuminationOTF, illuminationOTF.dtype))
+	print("DETECTION : {}{}".format(detectionOTF, detectionOTF.dtype))
+	print("CAM : {}".format(camOTF, camOTF.dtype))
 
 	numerator = 0
 	denominator = 0
@@ -366,9 +366,9 @@ def estimateEta(speckle, uniform, sigma):
 		x += 1
 	eta1 = math.sqrt(numerator / denominator) * 1.2
 
-	eta2 = math.sqrt( illuminationOTF /  ( (bandpassFilter * detectionOTF * camOTF)**2 * np.absolute(illuminationOTF) ) )
+	#eta2 = math.sqrt( illuminationOTF /  ( (bandpassFilter * detectionOTF * camOTF)**2 * np.absolute(illuminationOTF) ) )
 
-	return eta1, eta2
+	return eta1
 
 
 

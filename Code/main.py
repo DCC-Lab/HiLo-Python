@@ -23,8 +23,8 @@ print("I'm calculating the contrast")
 contrast = fun.contrastCalculation(uniform=imgUniform, speckle=imgSpeckle, samplingWindow=3, sigma=sigmaValue) # va être utilisé pour produire le LP
 
 # Create the filters
-lowFilter = fun.lowPassFilter(image=imgUniform, sigmaFilter=sigmaValue)
-highFilter = fun.highPassFilter(low=lowFilter)
+lowFilter = fun.lowpassFilter(image=imgUniform, sigmaFilter=sigmaValue)
+highFilter = fun.highpassFilter(low=lowFilter)
 
 cxu = contrast*imgUniform
 print("CXU : {}{}".format(cxu, cxu.dtype))
@@ -44,10 +44,10 @@ print("HI : {}{}".format(HI, HI.dtype))
 # Step 6 : Evaluate the scaling function (seamless transition from low to high spatial frequencies)
 ## Évaluer n en fonction de l'équation 8 (C^2)
 etaValue = fun.estimateEta(speckle=imgSpeckle, uniform=imgUniform, sigma=sigmaValue)
-print("ETA : {etaValue}")
+print("ETA : {}".format(etaValue))
 
 # Step 7 : Evaluate I_{HiLo}
-imageHiLo = eta*LO + HI
+imageHiLo = etaValue*LO + HI
 print("HILO : {}{}".format(imageHiLo, imageHiLo.dtype))
 tiff.imshow(imageHiLo)
 plt.show()
