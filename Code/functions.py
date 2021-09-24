@@ -54,7 +54,7 @@ def createDifferenceImage(speckle, uniform):
 
 	return differenceInInt
 
-def createOTF(image):
+def cameraOTF(image):
 	"""Optical transfer function is the fft of the PSF. The modulation transfer function is the magnitude of the complex OTF."""
 	pixels = np.zeros(shape=(image.shape[0], image.shape[1]), dtype=np.uint16)
 	x = 0
@@ -64,20 +64,43 @@ def createOTF(image):
 			x1 = ((2*x-image.shape[0])*np.pi)/image.shape[0]
 			y1 = ((2*y-image.shape[1])*np.pi)/image.shape[1]
 			if x1 != 0 and y1 != 0:
-				pixel[x][y] = (math.sin(x1)*math.sin(y1))/(x1*y1)
+				pixels[x][y] = (math.sin(x1)*math.sin(y1))/(x1*y1)
 			elif x1 == 0 and y1 != 0: 
-				pixel[x][y] = math.sin(y1)/y1
+				pixels[x][y] = math.sin(y1)/y1
 			elif x1 != 0 and y1 == 0:
-				pixel[x][y] = math.sin(x1)/x1
+				pixels[x][y] = math.sin(x1)/x1
 			elif x1 != 0 and y1 != 0:
+				pixels[x][y] = 1
+			if pixels[x][y] < 0:
+				pixels[x][y] = 0
+			y += 1
+		y = 0
+		x += 1
+
+	return pixels
+
+def imagingOTF(numAperture, wavelength, magnification, pixelSize, image):
+	sizex = image.shape[0]
+	sizey = image.shape[1]
+	bandwidth = 2 * numAperture / (wavelength * 1e-9)
+	scaleUnits = magnification / (pixelSize * 1e-6) / bandwidth
+	pixel = np.zeros(shape=(sizex, sizey))
+
+	x = 0
+	y = 0
+	while x<sizex:
+		while y<sizey:
+			pixel[x][y] = math.sqrt((x+0.5-sizex/2)**2 / (sizex/2-1)**2 + (y+0.5-sizey/2)**2 / (sizey/2-1)**2)*scaleUnits
+			if pixel[x][y] > 1:
 				pixel[x][y] = 1
+			pixel[x][y] = 0.6366197723675814 * math.acos(pixel[x][y]) - pixel[x][y] * math.sqrt(1-pixel[x][y]*pixel[x][y])
 			if pixel[x][y] < 0:
 				pixel[x][y] = 0
 			y += 1
 		y = 0
 		x += 1
 
-	return pixels
+	return pixel
 
 def obtainFFTFitler(image, filteredImage):
 	exc.isANumpyArray(image)
@@ -230,10 +253,6 @@ def noiseInducedBias(cameraGain, readoutNoiseVariance, imageSpeckle, imageUnifor
 
 	stdevSpeckle, meanSpeckle = stdevAndMeanWholeImage(image=imageSpeckle, samplingWindow=samplingWindowSize)
 	stdevUniform, meanUniform = stdevAndMeanWholeImage(image=imageUniform, samplingWindow=samplingWindowSize)
-	# print("MEAN S : {}{}".format(meanSpeckle, meanSpeckle.dtype))
-	# print("STDEV S : {}{}".format(stdevSpeckle, stdevSpeckle.dtype))
-	# print("MEAN U : {}{}".format(meanUniform, meanUniform.dtype))
-	# print("STDEV U : {}{}".format(stdevUniform, stdevUniform.dtype))
 
 	fftFilter = obtainFFTFitler(image=imageUniform, filteredImage=difference)
 	sumAbsfftFilter = absSumAllPixels(array=fftFilter)
@@ -253,6 +272,7 @@ def noiseInducedBias(cameraGain, readoutNoiseVariance, imageSpeckle, imageUnifor
 		i1 += 1
 	
 	print("BIAS : {}{}".format(bias, type(bias[0][0])))
+
 	return bias
 
 def noiseInducedBiasReductionFromStdev(noise, stdev):
@@ -309,6 +329,32 @@ def highPassFilter(low):
 	hi = 1 - low
 	return hi
 
+def estimateEta(speckle, uniform, sigma):
+	differenceImage = createDifferenceImage(speckle=speckle, uniform=uniform)
+	gaussianImage = gaussianFilter(sigma=sigma, image=differenceImage)
+	bandpassFilter = obtainFFTFitler(image=uniform, filteredImage=gaussianImage)
+
+	illuminationOTF = imagingOTF(numAperture=1, wavelength=488, magnification=20, pixelSize=0.333, image=uniform)
+	detectionOTF = imagingOTF(numAperture=1, wavelength=520, magnification=20, pixelSize=0.333, image=uniform)
+	camOTF = cameraOTF(image=uniform)
+	print("ILL : {}{}".format(illuminationOTF, illuminationOTF.dtype))
+
+	numerator = 0
+	denominator = 0
+	x = 0
+	y = 0
+	while x<camOTF.shape[0]:
+		while y<camOTF.shape[1]:
+			denominator += (bandpassFilter[x][y] * detectionOTF[x][y] * camOTF[x][y])**2 * np.absolute(illuminationOTF[x][y])
+			numerator += illuminationOTF[x][y]
+			y += 1
+		y = 0
+		x += 1
+	eta1 = math.sqrt(numerator / denominator) * 1.2
+
+	eta2 = math.sqrt( illuminationOTF /  ( (bandpassFilter * detectionOTF * camOTF)^2 * np.absolute(illuminationOTF) ) )
+
+	return eta1, eta2
 
 
 
