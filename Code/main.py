@@ -22,16 +22,9 @@ imgDiff = fun.createDifferenceImage(speckle=imgSpeckle, uniform=imgUniform)
 print("I'm calculating the contrast")
 contrast = fun.contrastCalculation(uniform=imgUniform, speckle=imgSpeckle, samplingWindow=3, sigma=sigmaValue) # va être utilisé pour produire le LP
 
-# Step 5 : construct LP and HP filters according to the W defined at step 2
-# imgDiffFrequency = np.fft.fft2(imgDiff) # produit des nombres complexes. Ne peux pas être affiché à moins d'utiliser np.abs(fft)
-# cutoff frequency des filtres = 0.18sigma du gaussian bandpass filter en step 3
-# HP(k) = 1 - LP(k)
-# Ilp = LP[C*Iu]
-# Ihp = HP[Iu]
-
 # Create the filters
-lowFilter = fun.lowPassFilter(image=imgUniform, sigmaFilter=sigmaValue)
-highFilter = fun.highPassFilter(low=lowFilter)
+lowFilter = fun.lowpassFilter(image=imgUniform, sigmaFilter=sigmaValue)
+highFilter = fun.highpassFilter(low=lowFilter)
 
 cxu = contrast*imgUniform
 print("CXU : {}{}".format(cxu, cxu.dtype))
@@ -40,18 +33,26 @@ print("CXU UINT16 : {}{}".format(cxuuint16, cxuuint16.dtype))
 
 # Apply the low-pass frequency filter on the uniform image to create the LO portion
 # Ilp = LP[C*Iu]
-LO = np.real(np.fft.ifft2(lowFilter*(np.fft.fft2(cxuuint16))))
+LO = np.absolute(lowFilter*(np.fft.fft2(cxuuint16)))
 print("LO : {}{}".format(LO, LO.dtype))
-#imgLo = ski.util.img_as_uint(LO)
+tiff.imshow(LO)
+plt.show()
 
 # Apply the high-pass frequency filter to the uniform image to obtain the HI portion
 # Ihp = HP[Iu]
-HI = np.real(np.fft.ifft2(highFilter*np.fft.fft2(imgUniform)))
+HI = np.absolute(highFilter*np.fft.fft2(imgUniform))
 print("HI : {}{}".format(HI, HI.dtype))
-#imgHi = ski.util.img_as_uint(HI)
+tiff.imshow(HI)
+plt.show()
+
+# Step 6 : Evaluate the scaling function (seamless transition from low to high spatial frequencies)
+## Évaluer n en fonction de l'équation 8 (C^2)
+etaValue = fun.estimateEta(speckle=imgSpeckle, uniform=imgUniform, sigma=sigmaValue)
+
+# Step 7 : Evaluate I_{HiLo}
+imageHiLo = np.fft.ifft2(etaValue*LO + HI)
+print("HILO : {}{}".format(imageHiLo, imageHiLo.dtype))
+tiff.imshow(imageHiLo)
+plt.show()
 
 
-# # Step 6 : Evaluate the scaling function (seamless transition from low to high spatial frequencies)
-# ## Évaluer n en fonction de l'équation 8 (C^2)
-
-# # Step 7 : Evaluate I_{HiLo}

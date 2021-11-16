@@ -5,6 +5,7 @@ import math as math
 import exceptions as exc
 import matplotlib.pyplot as plt
 import skimage as ski
+import cmath as cmath
 
 def createImage(imagepath):
 	exc.isTifOrTiff(imagepath)
@@ -54,32 +55,59 @@ def createDifferenceImage(speckle, uniform):
 
 	return differenceInInt
 
-def createOTF(image):
+def cameraOTF(image):
 	"""Optical transfer function is the fft of the PSF. The modulation transfer function is the magnitude of the complex OTF."""
-	pixels = np.zeros(shape=(image.shape[0], image.shape[1]), dtype=np.uint16)
+	pixels = np.zeros(shape=(image.shape[0], image.shape[1]), dtype=np.float64)
 	x = 0
 	y = 0
 	while x < image.shape[0]:
 		while y < image.shape[1]:
-			x1 = ((2*x-image.shape[0])*np.pi)/image.shape[0]
-			y1 = ((2*y-image.shape[1])*np.pi)/image.shape[1]
+			x1 = (2*x-image.shape[0])*np.pi/image.shape[0]
+			y1 = (2*y-image.shape[1])*np.pi/image.shape[1]
 			if x1 != 0 and y1 != 0:
-				pixel[x][y] = (math.sin(x1)*math.sin(y1))/(x1*y1)
+				pixels[x][y] = (math.sin(x1)*math.sin(y1))/(x1*y1)
 			elif x1 == 0 and y1 != 0: 
-				pixel[x][y] = math.sin(y1)/y1
+				pixels[x][y] = math.sin(y1)/y1
 			elif x1 != 0 and y1 == 0:
-				pixel[x][y] = math.sin(x1)/x1
+				pixels[x][y] = math.sin(x1)/x1
 			elif x1 != 0 and y1 != 0:
-				pixel[x][y] = 1
-			if pixel[x][y] < 0:
-				pixel[x][y] = 0
+				pixels[x][y] = 1
+			if pixels[x][y] < 0:
+				pixels[x][y] = 0
 			y += 1
 		y = 0
 		x += 1
 
 	return pixels
 
+def imagingOTF(numAperture, wavelength, magnification, pixelSize, image):
+	sizex = image.shape[0]
+	sizey = image.shape[1]
+	bandwidth = 2 * numAperture / (wavelength * 1e-9)
+	scaleUnits = magnification / (pixelSize * 1e-6) / bandwidth
+	pixel = np.zeros(shape=(sizex, sizey), dtype=np.float64)
+
+	x = 0
+	y = 0
+	while x<sizex:
+		while y<sizey:
+			pixel[x][y] = math.sqrt(((x+0.5-sizex/2)**2 / (sizex/2-1)**2) + ((y+0.5-sizey/2)**2 / (sizey/2-1)**2))*scaleUnits
+			if pixel[x][y] > 1:
+				pixel[x][y] = 1
+			pixel[x][y] = 0.6366197723675814 * math.acos(pixel[x][y]) - pixel[x][y] * math.sqrt(1-pixel[x][y]*pixel[x][y])
+			if pixel[x][y] < 0:
+				pixel[x][y] = 0
+			y += 1
+		y = 0
+		x += 1
+
+	return pixel
+
 def obtainFFTFitler(image, filteredImage):
+	""""
+	returns:
+	2D numpy array of complex128 numbers. 
+	"""
 	exc.isANumpyArray(image)
 	exc.isANumpyArray(filteredImage)
 	exc.isSameShape(image1=image, image2=filteredImage)
@@ -117,6 +145,10 @@ def valueAllPixelsInImage(image):
 	return values
 
 def valueAllPixelsInSW(image, px, samplingWindow):
+	"""
+	returns:
+	list of the values of all elements in image at the pixel position px in the area of the sampling window samplingWindow. 
+	"""
 	n = int(samplingWindow/2)
 	positionInSW = [px[0]-n, px[1]-n]
 
@@ -135,39 +167,37 @@ def valueAllPixelsInSW(image, px, samplingWindow):
 
 	return values
 
-def absSumAllPixels(array):
-	i1 = 0
-	i2 = 0
-	if type(array) is np.ndarray:
-		while i1 < array.shape[0]:
-			while i2 < array.shape[1]: 
-				if type(array[i1][i2]) is np.complex128:
-					array[i1][i2] = np.absolute(array[i1][i2])
-				else : 
-					array[i1][i2] = abs(array[i1][i2])
-				i2 += 1
-			i2 = 0
-			i1 += 1 
-		sumValue = np.sum(array)
+def absSum(array, samplingW):
+	"""
+	returns:
+	numpy.nparray of the absolute sum of the values included in the sampling window samplingW of all pixels/elements in array.
+	"""
+	absSumImage = np.zeros(shape=(array.shape[0], array.shape[1]))
+	pixelPosition = [0,0]
 
-	elif type(array) is list:
-		for i in range(len(array)):
-			if type(array[i]) is np.complex128:
-				array[i] = np.absolute(array[i])
-			else : 
-				array[i] = abs(array[i])
-		sumValue = sum(array)
+	while pixelPosition[0] < array.shape[0]:
+		absSumValues = []
+		while pixelPosition[1] < array.shape[1]:
+			# Calculations of one pixel
+			valuesInSW = valueAllPixelsInSW(image=array, px=pixelPosition, samplingWindow=samplingW)
+			if type(array[pixelPosition[0]][pixelPosition[1]]) is np.complex128:
+				absSumValues.append(np.sum(np.absolute(valuesInSW)))
+			else:
+				absSumValues.append(np.sum(np.abs(valuesInSW)))
 
-	else:
-		if type(array) is np.complex128:
-			array = np.absolute(array)
-		else : 
-			array = abs(array)
-		sumValue = sum(array)
+			pixelPosition[1] = pixelPosition[1] + 1
 
-	return sumValue.real
+		absSumImage[pixelPosition[0]] = absSumValues
+		pixelPosition[1] = 0
+		pixelPosition[0] = pixelPosition[0] + 1
 
-def squaredFunction(array):
+	return absSumImage.real
+
+def squared(array):
+	"""
+	returns:
+	The squared value of the list, numpy.ndarray or number. The type of array is kept throughout the execution of the function. 
+	"""
 	if type(array) is np.ndarray:
 		i1 = 0
 		i2 = 0
@@ -232,16 +262,11 @@ def noiseInducedBias(cameraGain, readoutNoiseVariance, imageSpeckle, imageUnifor
 
 	stdevSpeckle, meanSpeckle = stdevAndMeanWholeImage(image=imageSpeckle, samplingWindow=samplingWindowSize)
 	stdevUniform, meanUniform = stdevAndMeanWholeImage(image=imageUniform, samplingWindow=samplingWindowSize)
-	# print("MEAN S : {}{}".format(meanSpeckle, meanSpeckle.dtype))
-	# print("STDEV S : {}{}".format(stdevSpeckle, stdevSpeckle.dtype))
-	# print("MEAN U : {}{}".format(meanUniform, meanUniform.dtype))
-	# print("STDEV U : {}{}".format(stdevUniform, stdevUniform.dtype))
 
 	fftFilter = obtainFFTFitler(image=imageUniform, filteredImage=difference)
-	sumAbsFftFilter = absSumAllPixels(array=fftFilter)
-	squaredSumAbsFftFilter = squaredFunction(array=sumAbsFftFilter)
-	print("SQUARE : {}{}".format(squaredSumAbsFftFilter, squaredSumAbsFftFilter.dtype))
-	
+	sumAbsfftFilter = absSum(array=fftFilter, samplingW=samplingWindowSize)
+	squaredSumAbsfftFilter = squared(array=sumAbsfftFilter)
+
 	# Calculate the noise-induced biased function. 
 	i1 = 0
 	i2 = 0
@@ -249,12 +274,12 @@ def noiseInducedBias(cameraGain, readoutNoiseVariance, imageSpeckle, imageUnifor
 	while i1 < meanUniform.shape[0]:
 		noiseArray = []
 		while i2 < meanUniform.shape[1]:
-			noiseArray.append(((np.sqrt(cameraGain*meanUniform[i1][i2]) + (cameraGain*meanSpeckle[i1][i2]) + readoutNoiseVariance) * squaredSumAbsFftFilter))
+			noiseArray.append(((np.sqrt(cameraGain*meanUniform[i1][i2]) + (cameraGain*meanSpeckle[i1][i2]) + readoutNoiseVariance) * squaredSumAbsfftFilter[i1][i2]))
+
 			i2 += 1
 		bias[i1] = noiseArray	
 		i2 = 0
 		i1 += 1
-	print("BIAS : {}{}".format(bias, bias.dtype))
 	return bias
 
 def noiseInducedBiasReductionFromStdev(noise, stdev):
@@ -280,7 +305,9 @@ def contrastCalculation(uniform, speckle, samplingWindow, sigma):
 	gaussianImage = gaussianFilter(sigma=sigma, image=differenceImage)
 
 	# calculate the noise-induced bias of the image
-	noiseFunction = noiseInducedBias(cameraGain=0.45776, readoutNoiseVariance=0.3508935, imageSpeckle=speckle, imageUniform=uniform, difference=gaussianImage, samplingWindowSize=samplingWindow, sigma=sigma)
+
+	noiseFunction = np.zeros(shape=(uniform.shape[0], uniform.shape[1]))
+	# noiseFunction = noiseInducedBias(cameraGain=1, readoutNoiseVariance=0.3508935, imageSpeckle=speckle, imageUniform=uniform, difference=gaussianImage, samplingWindowSize=samplingWindow, sigma=sigma)
 
 	# calculate the stdev and the mean of the speckle and the uniform image
 	stdevDifference, meanDifference = stdevAndMeanWholeImage(image=gaussianImage, samplingWindow=samplingWindow)
@@ -300,11 +327,11 @@ def contrastCalculation(uniform, speckle, samplingWindow, sigma):
 		i2 = 0
 		i1 += 1
 
-	print("CONTRAST FUNCTION : {}{}{}".format(contrastFunction, contrastFunction.dtype, np.amax(contrastFunction)))
-	print("MAX : {}".format(np.amax(contrastFunction)))
+	#print("CONTRAST FUNCTION : {}{}".format(contrastFunction, contrastFunction.dtype))
 	return contrastFunction
 
-def lowPassFilter(image, sigmaFilter):
+def lowpassFilter(image, sigmaFilter):
+
 	exc.isANumpyArray(image)
 	exc.isIntOrFloat(sigmaFilter)
 
@@ -318,12 +345,47 @@ def lowPassFilter(image, sigmaFilter):
 
 	return gaussNorm
 
-def highPassFilter(low):
+def highpassFilter(low):
 	exc.isANumpyArray(low)
 
 	hi = 1 - low
 	return hi
 
+def estimateEta(speckle, uniform, sigma):
+	"""
+	returns:
+	the function eta in numpy.ndarray. Calculations taken from the java code for the HiLo Fiji plugin and from personal communication with Olivier Dupont-Therrien at Bliq Photonics
+	"""
+	differenceImage = createDifferenceImage(speckle=speckle, uniform=uniform)
+	gaussianImage = gaussianFilter(sigma=sigma, image=differenceImage)
+	bandpassFilter = obtainFFTFitler(image=uniform, filteredImage=gaussianImage)
+
+	illuminationOTF = imagingOTF(numAperture=1, wavelength=488e-9, magnification=20, pixelSize=0.333, image=uniform)
+	detectionOTF = imagingOTF(numAperture=1, wavelength=520e-9, magnification=20, pixelSize=0.333, image=uniform)
+	camOTF = cameraOTF(image=uniform)
+	print("illumination : {}{}".format(illuminationOTF, illuminationOTF.dtype))
+	print("detection : {}{}".format(detectionOTF, detectionOTF.dtype))
+
+	eta = np.zeros(shape=(uniform.shape[0], uniform.shape[1]), dtype=np.complex128)
+	x = 0
+	y = 0
+	while x<camOTF.shape[0]:
+		etaList = []
+		while y<camOTF.shape[1]:
+			denominator = (bandpassFilter[x][y] * detectionOTF[x][y] * camOTF[x][y])**2 * np.absolute(illuminationOTF[x][y])
+			numerator = illuminationOTF[x][y]
+			print("NUM : {}{}".format(numerator, type(numerator)))
+			print("DE : {}{}".format(denominator, type(denominator)))
+			result = cmath.sqrt(numerator / denominator) * 1.2
+			etaList.append(result)
+			y += 1
+		print(etaList)
+		eta[x] = etaList
+		y = 0
+		x += 1
+
+	print(eta)
+	return eta
 
 
 
