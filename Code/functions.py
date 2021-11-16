@@ -5,6 +5,7 @@ import math as math
 import exceptions as exc
 import matplotlib.pyplot as plt
 import skimage as ski
+import cmath as cmath
 
 def createImage(imagepath):
 	exc.isTifOrTiff(imagepath)
@@ -91,15 +92,11 @@ def imagingOTF(numAperture, wavelength, magnification, pixelSize, image):
 	while x<sizex:
 		while y<sizey:
 			pixel[x][y] = math.sqrt(((x+0.5-sizex/2)**2 / (sizex/2-1)**2) + ((y+0.5-sizey/2)**2 / (sizey/2-1)**2))*scaleUnits
-			print(pixel[x][y])
 			if pixel[x][y] > 1:
 				pixel[x][y] = 1
-			print(pixel[x][y])
 			pixel[x][y] = 0.6366197723675814 * math.acos(pixel[x][y]) - pixel[x][y] * math.sqrt(1-pixel[x][y]*pixel[x][y])
-			print(pixel[x][y])
 			if pixel[x][y] < 0:
 				pixel[x][y] = 0
-			print(pixel[x][y])
 			y += 1
 		y = 0
 		x += 1
@@ -268,7 +265,7 @@ def noiseInducedBias(cameraGain, readoutNoiseVariance, imageSpeckle, imageUnifor
 	sumAbsfftFilter = absSum(array=fftFilter, samplingW=samplingWindowSize)
 	squaredSumAbsfftFilter = squared(array=sumAbsfftFilter)
 
-	print("SQUARED : {}".format(squaredSumAbsfftFilter))
+	#print("SQUARED : {}".format(squaredSumAbsfftFilter))
 	# Calculate the noise-induced biased function. 
 	i1 = 0
 	i2 = 0
@@ -354,6 +351,10 @@ def highpassFilter(low):
 	return hi
 
 def estimateEta(speckle, uniform, sigma):
+	"""
+	returns:
+	the function eta in numpy.ndarray. Calculations taken from the java code for the HiLo Fiji plugin and from personal communication with Olivier Dupont-Therrien at Bliq Photonics
+	"""
 	differenceImage = createDifferenceImage(speckle=speckle, uniform=uniform)
 	gaussianImage = gaussianFilter(sigma=sigma, image=differenceImage)
 	bandpassFilter = obtainFFTFitler(image=uniform, filteredImage=gaussianImage)
@@ -361,11 +362,10 @@ def estimateEta(speckle, uniform, sigma):
 	illuminationOTF = imagingOTF(numAperture=1, wavelength=488e-9, magnification=20, pixelSize=0.333, image=uniform)
 	detectionOTF = imagingOTF(numAperture=1, wavelength=520e-9, magnification=20, pixelSize=0.333, image=uniform)
 	camOTF = cameraOTF(image=uniform)
-	print("ILL : {}{}".format(illuminationOTF, illuminationOTF.dtype))
-	print("DETECTION : {}{}".format(detectionOTF, detectionOTF.dtype))
-	#print("CAM : {}".format(camOTF, camOTF.dtype))
+	print("illumination : {}{}".format(illuminationOTF, illuminationOTF.dtype))
+	print("detection : {}{}".format(detectionOTF, detectionOTF.dtype))
 
-	eta = np.zeros(shape=(uniform.shape[0], uniform.shape[1]))
+	eta = np.zeros(shape=(uniform.shape[0], uniform.shape[1]), dtype=np.complex128)
 	x = 0
 	y = 0
 	while x<camOTF.shape[0]:
@@ -373,16 +373,17 @@ def estimateEta(speckle, uniform, sigma):
 		while y<camOTF.shape[1]:
 			denominator = (bandpassFilter[x][y] * detectionOTF[x][y] * camOTF[x][y])**2 * np.absolute(illuminationOTF[x][y])
 			numerator = illuminationOTF[x][y]
-
-
-			etaList.append(numerator/denominator)
+			print("NUM : {}{}".format(numerator, type(numerator)))
+			print("DE : {}{}".format(denominator, type(denominator)))
+			result = cmath.sqrt(numerator / denominator) * 1.2
+			etaList.append(result)
 			y += 1
+		print(etaList)
+		eta[x] = etaList
 		y = 0
 		x += 1
-	eta = math.sqrt(numerator / denominator) * 1.2
 
-	#eta2 = math.sqrt( illuminationOTF /  ( (bandpassFilter * detectionOTF * camOTF)**2 * np.absolute(illuminationOTF) ) )
-
+	print(eta)
 	return eta
 
 
