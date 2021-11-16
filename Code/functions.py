@@ -421,11 +421,13 @@ def createHiLoImage(uniform, speckle, sigma, sWindow):
 	#print("HI : {}{}".format(HI, HI.dtype))
 	fftuniform = np.fft.fft2(uniform)
 	print("FFT UNIFORM : {}{}".format(fftuniform, fftuniform.dtype))
+	tiff.imshow(uniform)
+	plt.show()
 	tiff.imshow(fftuniform)
 	plt.show()
-
 	tiff.imshow(HI)
 	plt.show()
+	# NOTE À MOI-MÊME POUR LA PROCHAINE FOIS : PAS DE HAUTES FRÉQUENCES SPATIALES DANS LES ÉCHANTILLONS D'IMAGE QUE J'UTILISE?
 
 	# Estimate the function eta for scaling the frequencies of the low image. 
 	eta = estimateEta(speckle=speckle, uniform=uniform, sigma=sigma)
