@@ -405,29 +405,24 @@ def createHiLoImage(uniform, speckle, sigma, sWindow):
 	plt.show()
 
 	cxu = contrast*uniform
+	fftcxu = np.fft.fft2(cxu)
 	tiff.imshow(cxu)
 	plt.show()
 
 	# Apply the low-pass frequency filter on the uniform image to create the LO portion
 	# Ilp = LP[C*Iu]
-	LO = lowFilter*(np.fft.fft2(cxu))
+	LO = lowFilter*(fftcxu/np.amax(fftcxu))
 	#print("LO : {}{}".format(LO, LO.dtype))
 	tiff.imshow(LO)
 	plt.show()
 
 	# Apply the high-pass frequency filter to the uniform image to obtain the HI portion
 	# Ihp = HP[Iu]
-	HI = highFilter*np.fft.fft2(uniform)
-	#print("HI : {}{}".format(HI, HI.dtype))
 	fftuniform = np.fft.fft2(uniform)
-	print("FFT UNIFORM : {}{}".format(fftuniform, fftuniform.dtype))
-	tiff.imshow(uniform)
-	plt.show()
-	tiff.imshow(fftuniform)
-	plt.show()
+	HI = highFilter*(fftuniform/np.amax(fftuniform))
 	tiff.imshow(HI)
 	plt.show()
-	# NOTE À MOI-MÊME POUR LA PROCHAINE FOIS : PAS DE HAUTES FRÉQUENCES SPATIALES DANS LES ÉCHANTILLONS D'IMAGE QUE J'UTILISE?
+	# NOTE À MOI-MÊME : NORMALISER LES FFT POUR QUE CE SOIT TOUS ENTRE 0 ET 1?
 
 	# Estimate the function eta for scaling the frequencies of the low image. 
 	eta = estimateEta(speckle=speckle, uniform=uniform, sigma=sigma)
