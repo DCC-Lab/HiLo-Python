@@ -103,6 +103,10 @@ def imagingOTF(numAperture, wavelength, magnification, pixelSize, image):
 	return pixel
 
 def obtainFFTFitler(image, filteredImage):
+	""""
+	returns:
+	2D numpy array of complex128 numbers. 
+	"""
 	exc.isANumpyArray(image)
 	exc.isANumpyArray(filteredImage)
 	exc.isSameShape(image1=image, image2=filteredImage)
@@ -138,6 +142,10 @@ def valueAllPixelsInImage(image):
 	return values
 
 def valueAllPixelsInSW(image, px, samplingWindow):
+	"""
+	returns:
+	list of the values of all elements in image at the pixel position px in the area of the sampling window samplingWindow. 
+	"""
 	n = int(samplingWindow/2)
 	positionInSW = [px[0]-n, px[1]-n]
 
@@ -156,39 +164,37 @@ def valueAllPixelsInSW(image, px, samplingWindow):
 
 	return values
 
-def absSumAllPixels(array):
-	i1 = 0
-	i2 = 0
-	if type(array) is np.ndarray:
-		while i1 < array.shape[0]:
-			while i2 < array.shape[1]: 
-				if type(array[i1][i2]) is np.complex128:
-					array[i1][i2] = np.absolute(array[i1][i2])
-				else : 
-					array[i1][i2] = abs(array[i1][i2])
-				i2 += 1
-			i2 = 0
-			i1 += 1 
-		sumValue = np.sum(array)
+def absSum(array, samplingW):
+	"""
+	returns:
+	numpy.nparray of the absolute sum of the values included in the sampling window samplingW of all pixels/elements in array.
+	"""
+	absSumImage = np.zeros(shape=(array.shape[0], array.shape[1]))
+	pixelPosition = [0,0]
 
-	elif type(array) is list:
-		for i in range(len(array)):
-			if type(array[i]) is np.complex128:
-				array[i] = np.absolute(array[i])
-			else : 
-				array[i] = abs(array[i])
-		sumValue = sum(array)
+	while pixelPosition[0] < array.shape[0]:
+		absSumValues = []
+		while pixelPosition[1] < array.shape[1]:
+			# Calculations of one pixel
+			valuesInSW = valueAllPixelsInSW(image=array, px=pixelPosition, samplingWindow=samplingW)
+			if type(array[pixelPosition[0]][pixelPosition[1]]) is np.complex128:
+				absSumValues.append(np.sum(np.absolute(valuesInSW)))
+			else:
+				absSumValues.append(np.sum(np.abs(valuesInSW)))
 
-	else:
-		if type(array) is np.complex128:
-			array = np.absolute(array)
-		else : 
-			array = abs(array)
-		sumValue = sum(array)
+			pixelPosition[1] = pixelPosition[1] + 1
 
-	return sumValue.real
+		absSumImage[pixelPosition[0]] = absSumValues
+		pixelPosition[1] = 0
+		pixelPosition[0] = pixelPosition[0] + 1
 
-def squaredFunction(array):
+	return absSumImage.real
+
+def squared(array):
+	"""
+	returns:
+	The squared value of the list, numpy.ndarray or number. The type of array is kept throughout the execution of the function. 
+	"""
 	if type(array) is np.ndarray:
 		i1 = 0
 		i2 = 0
@@ -255,8 +261,9 @@ def noiseInducedBias(cameraGain, readoutNoiseVariance, imageSpeckle, imageUnifor
 	stdevUniform, meanUniform = stdevAndMeanWholeImage(image=imageUniform, samplingWindow=samplingWindowSize)
 
 	fftFilter = obtainFFTFitler(image=imageUniform, filteredImage=difference)
-	sumAbsfftFilter = absSumAllPixels(array=fftFilter)
-	squaredSumAbsfftFilter = squaredFunction(array=sumAbsfftFilter)
+	sumAbsfftFilter = absSum(array=fftFilter, samplingW=samplingWindowSize)
+	squaredSumAbsfftFilter = squared(array=sumAbsfftFilter)
+
 	print("SQUARED : {}".format(squaredSumAbsfftFilter))
 	# Calculate the noise-induced biased function. 
 	i1 = 0
@@ -265,7 +272,7 @@ def noiseInducedBias(cameraGain, readoutNoiseVariance, imageSpeckle, imageUnifor
 	while i1 < meanUniform.shape[0]:
 		noiseArray = []
 		while i2 < meanUniform.shape[1]:
-			noiseArray.append(((np.sqrt(cameraGain*meanUniform[i1][i2]) + (cameraGain*meanSpeckle[i1][i2]) + readoutNoiseVariance) * squaredSumAbsfftFilter))
+			noiseArray.append(((np.sqrt(cameraGain*meanUniform[i1][i2]) + (cameraGain*meanSpeckle[i1][i2]) + readoutNoiseVariance) * squaredSumAbsfftFilter[i1][i2]))
 			i2 += 1
 		bias[i1] = noiseArray	
 		i2 = 0
