@@ -2,6 +2,7 @@ import functions as fun
 import matplotlib.pyplot as plt
 import numpy as np
 import tifffile as tiff
+import skimage as ski
 
 # Sigma defines the width of the filter.
 sigmaValue = 1
@@ -10,7 +11,6 @@ sigmaValue = 1
 imgSpeckle = fun.createImage("/Users/valeriepineaunoel/Documents/HiLo-Python/Data/20210306-SpeckleRhodamineETL-NoETL-S-6-Cropped.tif")
 imgUniform = fun.createImage("/Users/valeriepineaunoel/Documents/HiLo-Python/Data/20210306-SpeckleRhodamineETL-NoETL-U-6-Cropped.tif")
 imgDiff = fun.createDifferenceImage(speckle=imgSpeckle, uniform=imgUniform)
-
 
 # Step 2 : Frequency bandpass on the difference image. Adjusting its with to tune the width of the sectioning strength
 ## Image in frequency space.
@@ -54,7 +54,5 @@ imageHiLo = np.fft.ifft2(etaValue*LO + HI)
 print("HILO : {}{}".format(imageHiLo, imageHiLo.dtype))
 tiff.imshow(imageHiLo)
 plt.show()
-
-
 
 
