@@ -363,8 +363,8 @@ def estimateEta(speckle, uniform, sigma):
 	illuminationOTF = imagingOTF(numAperture=1, wavelength=488e-9, magnification=20, pixelSize=0.333, image=uniform)
 	detectionOTF = imagingOTF(numAperture=1, wavelength=520e-9, magnification=20, pixelSize=0.333, image=uniform)
 	camOTF = cameraOTF(image=uniform)
-	print("illumination : {}{}".format(illuminationOTF, illuminationOTF.dtype))
-	print("detection : {}{}".format(detectionOTF, detectionOTF.dtype))
+	#print("illumination : {}{}".format(illuminationOTF, illuminationOTF.dtype))
+	#print("detection : {}{}".format(detectionOTF, detectionOTF.dtype))
 
 	eta = np.zeros(shape=(uniform.shape[0], uniform.shape[1]), dtype=np.complex128)
 	x = 0
@@ -374,19 +374,73 @@ def estimateEta(speckle, uniform, sigma):
 		while y<camOTF.shape[1]:
 			denominator = (bandpassFilter[x][y] * detectionOTF[x][y] * camOTF[x][y])**2 * np.absolute(illuminationOTF[x][y])
 			numerator = illuminationOTF[x][y]
-			print("NUM : {}{}".format(numerator, type(numerator)))
-			print("DE : {}{}".format(denominator, type(denominator)))
-			result = cmath.sqrt(numerator / denominator) * 1.2
+			if denominator == 0 or numerator == 0:
+				result = 0
+			else:
+				result = cmath.sqrt(numerator / denominator) * 1.2
 			etaList.append(result)
 			y += 1
-		print(etaList)
 		eta[x] = etaList
 		y = 0
 		x += 1
-
+	print(np.where(np.isnan(eta)))
 	print(eta)
+	#print(eta)
 	return eta
 
+
+def createHiLoImage(uniform, speckle, sigma, sWindow):
+
+	# calculate the contrast
+	contrast = contrastCalculation(uniform=uniform, speckle=speckle, samplingWindow=sWindow, sigma=sigma)
+	print(contrast)
+	print(np.amax(contrast))
+
+	# Create the filters
+	lowFilter = lowpassFilter(image=uniform, sigmaFilter=sigma)
+	highFilter = highpassFilter(low=lowFilter)
+	tiff.imshow(lowFilter)
+	plt.show()
+	tiff.imshow(highFilter)
+	plt.show()
+
+	cxu = contrast*uniform
+	tiff.imshow(cxu)
+	plt.show()
+
+	# Apply the low-pass frequency filter on the uniform image to create the LO portion
+	# Ilp = LP[C*Iu]
+	LO = lowFilter*(np.fft.fft2(cxu))
+	#print("LO : {}{}".format(LO, LO.dtype))
+	tiff.imshow(LO)
+	plt.show()
+
+	# Apply the high-pass frequency filter to the uniform image to obtain the HI portion
+	# Ihp = HP[Iu]
+	HI = highFilter*np.fft.fft2(uniform)
+	#print("HI : {}{}".format(HI, HI.dtype))
+	fftuniform = np.fft.fft2(uniform)
+	print("FFT UNIFORM : {}{}".format(fftuniform, fftuniform.dtype))
+	tiff.imshow(fftuniform)
+	plt.show()
+
+	tiff.imshow(HI)
+	plt.show()
+
+	# Estimate the function eta for scaling the frequencies of the low image. 
+	eta = estimateEta(speckle=speckle, uniform=uniform, sigma=sigma)
+
+	#result = eta*LO + HI
+	#print("RESULT : {}{}".format(result, result.dtype))
+	#result2 = np.fft.ifft2(result)
+	#print(np.where(np.isnan(result)))
+	#print("RESULT2 : {}{}".format(result2, result2.dtype))
+	#print(np.where(np.isnan(result2)))
+	# Evaluate the HiLo image. 
+	imageHiLo = np.absolute(np.fft.ifft2(eta*LO + HI))
+	print("HILO : {}{}".format(imageHiLo, imageHiLo.dtype))
+
+	return imageHiLo
 
 
 
