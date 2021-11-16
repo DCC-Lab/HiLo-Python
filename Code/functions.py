@@ -56,13 +56,13 @@ def createDifferenceImage(speckle, uniform):
 
 def cameraOTF(image):
 	"""Optical transfer function is the fft of the PSF. The modulation transfer function is the magnitude of the complex OTF."""
-	pixels = np.zeros(shape=(image.shape[0], image.shape[1]), dtype=np.uint16)
+	pixels = np.zeros(shape=(image.shape[0], image.shape[1]), dtype=np.float64)
 	x = 0
 	y = 0
 	while x < image.shape[0]:
 		while y < image.shape[1]:
-			x1 = ((2*x-image.shape[0])*np.pi)/image.shape[0]
-			y1 = ((2*y-image.shape[1])*np.pi)/image.shape[1]
+			x1 = (2*x-image.shape[0])*np.pi/image.shape[0]
+			y1 = (2*y-image.shape[1])*np.pi/image.shape[1]
 			if x1 != 0 and y1 != 0:
 				pixels[x][y] = (math.sin(x1)*math.sin(y1))/(x1*y1)
 			elif x1 == 0 and y1 != 0: 
@@ -84,18 +84,22 @@ def imagingOTF(numAperture, wavelength, magnification, pixelSize, image):
 	sizey = image.shape[1]
 	bandwidth = 2 * numAperture / (wavelength * 1e-9)
 	scaleUnits = magnification / (pixelSize * 1e-6) / bandwidth
-	pixel = np.zeros(shape=(sizex, sizey))
+	pixel = np.zeros(shape=(sizex, sizey), dtype=np.float64)
 
 	x = 0
 	y = 0
 	while x<sizex:
 		while y<sizey:
 			pixel[x][y] = math.sqrt(((x+0.5-sizex/2)**2 / (sizex/2-1)**2) + ((y+0.5-sizey/2)**2 / (sizey/2-1)**2))*scaleUnits
+			print(pixel[x][y])
 			if pixel[x][y] > 1:
 				pixel[x][y] = 1
+			print(pixel[x][y])
 			pixel[x][y] = 0.6366197723675814 * math.acos(pixel[x][y]) - pixel[x][y] * math.sqrt(1-pixel[x][y]*pixel[x][y])
+			print(pixel[x][y])
 			if pixel[x][y] < 0:
 				pixel[x][y] = 0
+			print(pixel[x][y])
 			y += 1
 		y = 0
 		x += 1
@@ -305,7 +309,8 @@ def contrastCalculation(uniform, speckle, samplingWindow, sigma):
 	gaussianImage = gaussianFilter(sigma=sigma, image=differenceImage)
 
 	# calculate the noise-induced bias of the image
-	noiseFunction = noiseInducedBias(cameraGain=1, readoutNoiseVariance=0.3508935, imageSpeckle=speckle, imageUniform=uniform, difference=gaussianImage, samplingWindowSize=samplingWindow, sigma=sigma)
+	noiseFunction = np.zeros(shape=(uniform.shape[0], uniform.shape[1]))
+	# noiseFunction = noiseInducedBias(cameraGain=1, readoutNoiseVariance=0.3508935, imageSpeckle=speckle, imageUniform=uniform, difference=gaussianImage, samplingWindowSize=samplingWindow, sigma=sigma)
 
 	# calculate the stdev and the mean of the speckle and the uniform image
 	stdevDifference, meanDifference = stdevAndMeanWholeImage(image=gaussianImage, samplingWindow=samplingWindow)
@@ -325,7 +330,7 @@ def contrastCalculation(uniform, speckle, samplingWindow, sigma):
 		i2 = 0
 		i1 += 1
 
-	print("CONTRAST FUNCTION : {}{}".format(contrastFunction, contrastFunction.dtype))
+	#print("CONTRAST FUNCTION : {}{}".format(contrastFunction, contrastFunction.dtype))
 	return contrastFunction
 
 def lowpassFilter(image, sigmaFilter):
@@ -353,29 +358,32 @@ def estimateEta(speckle, uniform, sigma):
 	gaussianImage = gaussianFilter(sigma=sigma, image=differenceImage)
 	bandpassFilter = obtainFFTFitler(image=uniform, filteredImage=gaussianImage)
 
-	illuminationOTF = imagingOTF(numAperture=1, wavelength=488, magnification=20, pixelSize=0.333, image=uniform)
-	detectionOTF = imagingOTF(numAperture=1, wavelength=520, magnification=20, pixelSize=0.333, image=uniform)
+	illuminationOTF = imagingOTF(numAperture=1, wavelength=488e-9, magnification=20, pixelSize=0.333, image=uniform)
+	detectionOTF = imagingOTF(numAperture=1, wavelength=520e-9, magnification=20, pixelSize=0.333, image=uniform)
 	camOTF = cameraOTF(image=uniform)
 	print("ILL : {}{}".format(illuminationOTF, illuminationOTF.dtype))
 	print("DETECTION : {}{}".format(detectionOTF, detectionOTF.dtype))
-	print("CAM : {}".format(camOTF, camOTF.dtype))
+	#print("CAM : {}".format(camOTF, camOTF.dtype))
 
-	numerator = 0
-	denominator = 0
+	eta = np.zeros(shape=(uniform.shape[0], uniform.shape[1]))
 	x = 0
 	y = 0
 	while x<camOTF.shape[0]:
+		etaList = []
 		while y<camOTF.shape[1]:
-			denominator += (bandpassFilter[x][y] * detectionOTF[x][y] * camOTF[x][y])**2 * np.absolute(illuminationOTF[x][y])
-			numerator += illuminationOTF[x][y]
+			denominator = (bandpassFilter[x][y] * detectionOTF[x][y] * camOTF[x][y])**2 * np.absolute(illuminationOTF[x][y])
+			numerator = illuminationOTF[x][y]
+
+
+			etaList.append(numerator/denominator)
 			y += 1
 		y = 0
 		x += 1
-	eta1 = math.sqrt(numerator / denominator) * 1.2
+	eta = math.sqrt(numerator / denominator) * 1.2
 
 	#eta2 = math.sqrt( illuminationOTF /  ( (bandpassFilter * detectionOTF * camOTF)**2 * np.absolute(illuminationOTF) ) )
 
-	return eta1
+	return eta
 
 
 

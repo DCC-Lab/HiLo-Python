@@ -35,11 +35,15 @@ print("CXU UINT16 : {}{}".format(cxuuint16, cxuuint16.dtype))
 # Ilp = LP[C*Iu]
 LO = np.absolute(np.fft.ifft2(lowFilter*(np.fft.fft2(cxuuint16))))
 print("LO : {}{}".format(LO, LO.dtype))
+tiff.imshow(LO)
+plt.show()
 
 # Apply the high-pass frequency filter to the uniform image to obtain the HI portion
 # Ihp = HP[Iu]
 HI = np.absolute(np.fft.ifft2(highFilter*np.fft.fft2(imgUniform)))
 print("HI : {}{}".format(HI, HI.dtype))
+tiff.imshow(HI)
+plt.show()
 
 # Step 6 : Evaluate the scaling function (seamless transition from low to high spatial frequencies)
 ## Évaluer n en fonction de l'équation 8 (C^2)
