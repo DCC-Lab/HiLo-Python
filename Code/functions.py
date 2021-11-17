@@ -399,30 +399,47 @@ def createHiLoImage(uniform, speckle, sigma, sWindow):
 	# Create the filters
 	lowFilter = lowpassFilter(image=uniform, sigmaFilter=sigma)
 	highFilter = highpassFilter(low=lowFilter)
-	tiff.imshow(lowFilter)
-	plt.show()
-	tiff.imshow(highFilter)
-	plt.show()
+	#tiff.imshow(lowFilter)
+	#plt.show()
+	#tiff.imshow(highFilter)
+	#plt.show()
+
+	#tiff.imshow(uniform)
+	#plt.show()
 
 	cxu = contrast*uniform
 	fftcxu = np.fft.fft2(cxu)
-	tiff.imshow(cxu)
-	plt.show()
+	normfftcxu = fftcxu/np.amax(fftcxu)
+	#tiff.imshow(normfftcxu)
+	#plt.show()
 
 	# Apply the low-pass frequency filter on the uniform image to create the LO portion
 	# Ilp = LP[C*Iu]
-	LO = lowFilter*(fftcxu/np.amax(fftcxu))
-	#print("LO : {}{}".format(LO, LO.dtype))
-	tiff.imshow(LO)
-	plt.show()
+	fftLO = lowFilter*normfftcxu
+	#tiff.imshow(fftLO)
+	#plt.show()
+
+	LO = np.fft.ifft2(fftLO)
+	uin16LO = LO.astype(np.uint16)
+	print("LO : {}{}".format(LO, LO.dtype))
+	#tiff.imsave(uin16LO)
+	#tiff.imshow(LO)
+	#plt.show()
 
 	# Apply the high-pass frequency filter to the uniform image to obtain the HI portion
 	# Ihp = HP[Iu]
 	fftuniform = np.fft.fft2(uniform)
-	HI = highFilter*(fftuniform/np.amax(fftuniform))
-	tiff.imshow(HI)
-	plt.show()
-	# NOTE À MOI-MÊME : NORMALISER LES FFT POUR QUE CE SOIT TOUS ENTRE 0 ET 1?
+	normfftuniform = fftuniform/np.amax(fftuniform)
+	print("FFT UNIFORM :  {}{}".format(normfftuniform, normfftuniform.dtype))
+	#tiff.imshow(normfftuniform)
+	#plt.show()
+
+	fftHI = highFilter*normfftuniform
+	#tiff.imshow(fftHI)
+	#plt.show()
+	HI = np.fft.ifft2(fftHI)
+	#tiff.imshow(HI)
+	#plt.show()
 
 	# Estimate the function eta for scaling the frequencies of the low image. 
 	eta = estimateEta(speckle=speckle, uniform=uniform, sigma=sigma)
@@ -434,8 +451,8 @@ def createHiLoImage(uniform, speckle, sigma, sWindow):
 	#print("RESULT2 : {}{}".format(result2, result2.dtype))
 	#print(np.where(np.isnan(result2)))
 	# Evaluate the HiLo image. 
-	imageHiLo = np.absolute(np.fft.ifft2(eta*LO + HI))
-	print("HILO : {}{}".format(imageHiLo, imageHiLo.dtype))
+	imageHiLo = np.absolute(np.fft.ifft2(eta*fftLO + fftHI))
+	#print("HILO : {}{}".format(imageHiLo, imageHiLo.dtype))
 
 	return imageHiLo
 

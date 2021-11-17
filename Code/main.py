@@ -3,6 +3,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 import tifffile as tiff
 import skimage as ski
+import time
+
+start = time.time()
 
 # Sigma defines the width of the filter.
 sigmaValue = 1
@@ -13,6 +16,8 @@ imgUniform = fun.createImage("/Users/valeriepineaunoel/Documents/HiLo-Python/Dat
 imgDiff = fun.createDifferenceImage(speckle=imgSpeckle, uniform=imgUniform)
 
 imgHiLo = fun.createHiLoImage(uniform=imgUniform, speckle=imgSpeckle, sigma=sigmaValue, sWindow=3)
-tiff.imshow(imgHiLo)
-plt.show()
+#tiff.imshow(imgHiLo)
+#plt.show()
 
+end = time.time()
+print(f"Execution time is {end-start}")
