@@ -4,6 +4,10 @@ import numpy as np
 import tifffile as tiff
 import skimage as ski
 import time
+import cProfile
+import re
+
+#cProfile.run('re.compile("foo|bar")')
 
 start = time.time()
 

@@ -351,7 +351,7 @@ def highpassFilter(low):
 	hi = 1 - low
 	return hi
 
-def estimateEta(speckle, uniform, sigma):
+def estimateEta(speckle, uniform, sigma, ffthi, fftlo):
 	"""
 	returns:
 	the function eta in numpy.ndarray. Calculations taken from the java code for the HiLo Fiji plugin and from personal communication with Olivier Dupont-Therrien at Bliq Photonics
@@ -363,98 +363,133 @@ def estimateEta(speckle, uniform, sigma):
 	illuminationOTF = imagingOTF(numAperture=1, wavelength=488e-9, magnification=20, pixelSize=0.333, image=uniform)
 	detectionOTF = imagingOTF(numAperture=1, wavelength=520e-9, magnification=20, pixelSize=0.333, image=uniform)
 	camOTF = cameraOTF(image=uniform)
-	#print("illumination : {}{}".format(illuminationOTF, illuminationOTF.dtype))
-	#print("detection : {}{}".format(detectionOTF, detectionOTF.dtype))
+	
+	# Method 1 : Generate a function eta for each pixels.
+	#eta = np.zeros(shape=(uniform.shape[0], uniform.shape[1]), dtype=np.complex128) 
+	#x = 0
+	#y = 0
+	#while x<camOTF.shape[0]:
+	#	etaList = []
+	#	while y<camOTF.shape[1]:
+	#		denominator = (bandpassFilter[x][y] * detectionOTF[x][y] * camOTF[x][y])**2 * np.absolute(illuminationOTF[x][y])
+	#		numerator = illuminationOTF[x][y]
+	#		if denominator == 0 or numerator == 0:
+	#			result = 0
+	#		else:
+	#			result = cmath.sqrt(numerator / denominator)
+	#		etaList.append(result)
+	#		y += 1
+	#	eta[x] = etaList
+	#	y = 0
+	#	x += 1
 
-	eta = np.zeros(shape=(uniform.shape[0], uniform.shape[1]), dtype=np.complex128)
+	# Method 2 : Generate one value for the whole image. 
+	#numerator = 0
+	#denominator = 0
+	#x = 0
+	#y = 0
+	#while x<camOTF.shape[0]:
+	#	while y<camOTF.shape[1]:
+	#		firstStep = (bandpassFilter[x][y] * detectionOTF[x][y] * camOTF[x][y])**2
+	#		secondStep = np.absolute(illuminationOTF[x][y])
+	#		denominator += (bandpassFilter[x][y] * detectionOTF[x][y] * camOTF[x][y])**2 * np.absolute(illuminationOTF[x][y])
+	#		numerator += illuminationOTF[x][y]
+	#		y += 1
+	#	y = 0
+	#	x += 1
+	#eta = cmath.sqrt(numerator / denominator) * 1.2
+
+	#Method 3 : eta is obtained experimentally from the HI and the LO images
+	numerator = 0
+	denominator = 0
 	x = 0
 	y = 0
-	while x<camOTF.shape[0]:
-		etaList = []
-		while y<camOTF.shape[1]:
-			denominator = (bandpassFilter[x][y] * detectionOTF[x][y] * camOTF[x][y])**2 * np.absolute(illuminationOTF[x][y])
-			numerator = illuminationOTF[x][y]
-			if denominator == 0 or numerator == 0:
-				result = 0
-			else:
-				result = cmath.sqrt(numerator / denominator) * 1.2
-			etaList.append(result)
+	while x<ffthi.shape[0]:
+		while y<ffthi.shape[1]:
+			numerator += np.absolute(ffthi[x][y])
+			denominator += np.absolute(fftlo[x][y])
 			y += 1
-		eta[x] = etaList
 		y = 0
 		x += 1
-	print(np.where(np.isnan(eta)))
-	print(eta)
-	#print(eta)
+	eta = numerator/denominator
+
+	# Tried to normalize eta at some point to see what happened. Doesn't work. 
+	#normEta = np.zeros(shape=(uniform.shape[0], uniform.shape[1]), dtype=np.float64)
+	#x = 0
+	#y = 0
+	#while x < eta.shape[0]:
+	#	normEtaList = []
+	#	while y < eta.shape[1]:
+	#		normEtaValue = eta[x][y]/np.absolute(eta[x][y])
+	#		normEtaList.append(normEtaValue)
+	#		y += 1
+	#	normEta[x] = normEtaList
+	#	y = 0
+	#	x += 1
+
+	print(f"ETA : {eta}{type(eta)}")	
+
 	return eta
 
 
 def createHiLoImage(uniform, speckle, sigma, sWindow):
 
-	# calculate the contrast
+	# calculate the contrast weighting function
 	contrast = contrastCalculation(uniform=uniform, speckle=speckle, samplingWindow=sWindow, sigma=sigma)
-	print(contrast)
-	print(np.amax(contrast))
 
 	# Create the filters
 	lowFilter = lowpassFilter(image=uniform, sigmaFilter=sigma)
 	highFilter = highpassFilter(low=lowFilter)
-	#tiff.imshow(lowFilter)
-	#plt.show()
-	#tiff.imshow(highFilter)
-	#plt.show()
 
-	#tiff.imshow(uniform)
-	#plt.show()
+	# Create fft of uniform image and normalize with max value
+	fftuniform = np.fft.fftshift(np.fft.fft2(uniform))
+	normfftuniform = fftuniform/np.amax(fftuniform)
 
+	# Apply the contrast weighting function on the uniform image. FFT of the result and then normalize with max value.
 	cxu = contrast*uniform
-	fftcxu = np.fft.fft2(cxu)
-	normfftcxu = fftcxu/np.amax(fftcxu)
-	#tiff.imshow(normfftcxu)
-	#plt.show()
+	fftcxu = np.fft.fftshift(np.fft.fft2(cxu))
 
 	# Apply the low-pass frequency filter on the uniform image to create the LO portion
 	# Ilp = LP[C*Iu]
-	fftLO = lowFilter*normfftcxu
-	#tiff.imshow(fftLO)
-	#plt.show()
-
-	LO = np.fft.ifft2(fftLO)
-	uin16LO = LO.astype(np.uint16)
-	print("LO : {}{}".format(LO, LO.dtype))
-	#tiff.imsave(uin16LO)
-	#tiff.imshow(LO)
-	#plt.show()
+	fftLO = lowFilter*fftcxu
+	LO = np.fft.ifft2(np.fft.ifftshift(fftLO))
 
 	# Apply the high-pass frequency filter to the uniform image to obtain the HI portion
 	# Ihp = HP[Iu]
-	fftuniform = np.fft.fft2(uniform)
-	normfftuniform = fftuniform/np.amax(fftuniform)
-	print("FFT UNIFORM :  {}{}".format(normfftuniform, normfftuniform.dtype))
-	#tiff.imshow(normfftuniform)
-	#plt.show()
+	fftHI = highFilter*fftuniform
+	HI = np.fft.ifft2(np.fft.ifftshift(fftHI))
 
-	fftHI = highFilter*normfftuniform
-	#tiff.imshow(fftHI)
-	#plt.show()
-	HI = np.fft.ifft2(fftHI)
-	#tiff.imshow(HI)
-	#plt.show()
+	# Estimate the function eta for scaling the frequencies of the low image. Generates a complex number. 
+	eta = estimateEta(speckle=speckle, uniform=uniform, sigma=sigma, fftlo=fftLO, ffthi=fftHI)
 
-	# Estimate the function eta for scaling the frequencies of the low image. 
-	eta = estimateEta(speckle=speckle, uniform=uniform, sigma=sigma)
+	print(f"LO : {LO}{type(LO)}{LO.dtype}")
+	print(f"HI : {HI}{type(HI)}{HI.dtype}")
 
-	#result = eta*LO + HI
-	#print("RESULT : {}{}".format(result, result.dtype))
-	#result2 = np.fft.ifft2(result)
-	#print(np.where(np.isnan(result)))
-	#print("RESULT2 : {}{}".format(result2, result2.dtype))
-	#print(np.where(np.isnan(result2)))
-	# Evaluate the HiLo image. 
-	imageHiLo = np.absolute(np.fft.ifft2(eta*fftLO + fftHI))
-	#print("HILO : {}{}".format(imageHiLo, imageHiLo.dtype))
+	complexHiLo = eta*LO + HI
 
-	return imageHiLo
+	HiLo = np.zeros(shape=(complexHiLo.shape[0], complexHiLo.shape[1]), dtype=np.uint16)
+	x = 0 
+	y = 0
+	while x < complexHiLo.shape[0]:
+		while y < complexHiLo.shape[1]:
+			allo = complexHiLo[x][y].real + complexHiLo[x][y].imag
+			print(f"ALLO : {allo}{type(allo)}")
+			HiLo[x][y] = complexHiLo[x][y].real + complexHiLo[x][y].imag
+			print("I added this to the HiLo")
+			y += 1
+		y = 0	
+		x += 1
+
+	#rescaleHiLo = ski.util.img_as_uint(HiLo)
+	tiff.imshow(HiLo)
+	plt.show()
+	#tiff.imshow(rescaleHiLo)
+	print(f"complexHILO : {complexHiLo}{type(complexHiLo)}{complexHiLo.dtype}")
+	print(f"HILO : {HiLo}{type(HiLo)}{HiLo.dtype}")
+	#print(f"HILO : {rescaleHiLo}{type(rescaleHiLo)}{rescaleHiLo.dtype}")
+	#tiff.imsave(rescaleHiLo)
+
+	return HiLo
 
 
 
