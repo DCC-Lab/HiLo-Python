@@ -360,9 +360,11 @@ def estimateEta(speckle, uniform, sigma, ffthi, fftlo):
 	gaussianImage = gaussianFilter(sigma=sigma, image=differenceImage)
 	bandpassFilter = obtainFFTFitler(image=uniform, filteredImage=gaussianImage)
 
-	illuminationOTF = imagingOTF(numAperture=1, wavelength=488e-9, magnification=20, pixelSize=0.333, image=uniform)
-	detectionOTF = imagingOTF(numAperture=1, wavelength=520e-9, magnification=20, pixelSize=0.333, image=uniform)
+	illuminationOTF = imagingOTF(numAperture=1, wavelength=488e-9, magnification=20, pixelSize=6.5, image=uniform)
+	detectionOTF = imagingOTF(numAperture=1, wavelength=520e-9, magnification=20, pixelSize=6.5, image=uniform)
 	camOTF = cameraOTF(image=uniform)
+	print(f"Ill OTF : {illuminationOTF}{illuminationOTF.dtype}")
+	print(f"DET OTF {detectionOTF}{detectionOTF.dtype}")
 	
 	# Method 1 : Generate a function eta for each pixels.
 	#eta = np.zeros(shape=(uniform.shape[0], uniform.shape[1]), dtype=np.complex128) 
@@ -467,27 +469,22 @@ def createHiLoImage(uniform, speckle, sigma, sWindow):
 
 	complexHiLo = eta*LO + HI
 
+	# convert the complexHiLo image to obtain the modulus of each values. 
 	HiLo = np.zeros(shape=(complexHiLo.shape[0], complexHiLo.shape[1]), dtype=np.uint16)
 	x = 0 
 	y = 0
 	while x < complexHiLo.shape[0]:
 		while y < complexHiLo.shape[1]:
-			allo = complexHiLo[x][y].real + complexHiLo[x][y].imag
-			print(f"ALLO : {allo}{type(allo)}")
 			HiLo[x][y] = complexHiLo[x][y].real + complexHiLo[x][y].imag
-			print("I added this to the HiLo")
 			y += 1
 		y = 0	
 		x += 1
 
-	#rescaleHiLo = ski.util.img_as_uint(HiLo)
-	tiff.imshow(HiLo)
-	plt.show()
-	#tiff.imshow(rescaleHiLo)
+	#tiff.imshow(HiLo)
+	#plt.show()
+	tiff.imsave("/Users/valeriepineaunoel/Documents/HiLo-Python/Data/HiLoExp_2sigma_2.tiff", HiLo)
 	print(f"complexHILO : {complexHiLo}{type(complexHiLo)}{complexHiLo.dtype}")
 	print(f"HILO : {HiLo}{type(HiLo)}{HiLo.dtype}")
-	#print(f"HILO : {rescaleHiLo}{type(rescaleHiLo)}{rescaleHiLo.dtype}")
-	#tiff.imsave(rescaleHiLo)
 
 	return HiLo
 

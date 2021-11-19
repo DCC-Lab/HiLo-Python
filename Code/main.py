@@ -12,7 +12,7 @@ import re
 start = time.time()
 
 # Sigma defines the width of the filter.
-sigmaValue = 1
+sigmaValue = 2
 
 # Step 1 : Subtract uniform from speckled image to for the difference image
 imgSpeckle = fun.createImage("/Users/valeriepineaunoel/Documents/HiLo-Python/Data/20210306-SpeckleRhodamineETL-NoETL-S-6-Cropped.tif")
