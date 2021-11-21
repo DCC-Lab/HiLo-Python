@@ -420,29 +420,31 @@ def estimateEta(speckle, uniform, sigma, ffthi, fftlo, sig):
 	denominator = 0
 	x = 0
 	y = 0
-	n = 0
 	d = 0
+	elementPosition = []
 	cutoffhi = np.std(ffthi)*0.01
-	cutofflo = np.std(fftlo)*0.01
-
 	cutoff = 0.18*sig
+
 	while x<ffthi.shape[0]:
 		while y<ffthi.shape[1]:
 			if abs(cutoff-ffthi[x][y].real) < cutoffhi:
 				#print(f"I'm adding this to numerator : {ffthi[x][y]}")
-				numerator += cmath.sqrt(ffthi[x][y].real**2 + ffthi[x][y].imag**2)
-				n += 1
-			if abs(cutoff-fftlo[x][y].real) < cutoffhi:
-				#print(f"Add to den : {fftlo[x][y]}")
-				denominator += cmath.sqrt(fftlo[x][y].real**2 + fftlo[x][y].imag**2)
-				d += 1
+				numerator += math.sqrt(ffthi[x][y].real**2 + ffthi[x][y].imag**2)
+				elementPosition.append([x,y])
 			y += 1
 		y = 0
 		x += 1
-	print(f"N : {n}")
+
+	print(len(elementPosition))
+	for i in elementPosition:
+		print(i)
+		denominator += math.sqrt(fftlo[i[0]][i[1]].real**2 + fftlo[i[0]][i[1]].imag**2)
+		d += 1
+
+	print(f"N : {len(elementPosition)}")
 	print(f"D : {d}")
-	print(f"std and ratio hi : {np.std(ffthi)} and {cutoffhi}")
-	print(f"std and ratio lo : {np.std(fftlo)} and {cutofflo}")
+	print(f"Num : {numerator}")
+	print(f"Den : {denominator}")
 	eta = numerator/denominator
 
 
