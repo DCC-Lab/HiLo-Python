@@ -120,18 +120,18 @@ def obtainFFTFitler(image, filteredImage):
 	exc.isANumpyArray(filteredImage)
 	exc.isSameShape(image1=image, image2=filteredImage)
 
-	fftImage = np.fft.fft2(image)
-	fftFilteredImage = np.fft.fft2(filteredImage)
-	fftFilter = np.divide(fftFilteredImage, fftImage)
+	fftImage = np.fft.fftshift(np.fft.fft2(image))
+	fftFilteredImage = np.fft.fftshift(np.fft.fft2(filteredImage))
+	fftFilter = np.divide(fftFilteredImage, fftImage) # convolution in the space domain is a multiplication in the Fourier space and vice versa
 	normfftFilter = np.divide(fftFilter, np.amax(fftFilter))/fftFilter.shape[0]/fftFilter.shape[1]
 
 	return normfftFilter
 
-def gaussianFilter(sigma, image, truncate=4.0):
+def gaussianFilter(sigma, image):
 	exc.isANumpyArray(image)
 	exc.isIntOrFloat(sigma)
 
-	imgGaussian = simg.gaussian_filter(image, sigma=sigma, truncate=truncate) 
+	imgGaussian = simg.gaussian_filter(image, sigma=sigma, mode="nearest") 
 	return imgGaussian
 
 def valueOnePixel(image, pixelPosition):
@@ -394,20 +394,20 @@ def estimateEta(speckle, uniform, sigma, ffthi, fftlo, sig):
 	#	x += 1
 
 	# Method 2 : Generate one value for the whole image. 
-	numerator = 0
-	denominator = 0
-	x = 0
-	y = 0
-	while x<camOTF.shape[0]:
-		while y<camOTF.shape[1]:
-			firstStep = (bandpassFilter[x][y] * detectionOTF[x][y] * camOTF[x][y])**2
-			secondStep = np.absolute(illuminationOTF[x][y])
-			denominator += (bandpassFilter[x][y] * detectionOTF[x][y] * camOTF[x][y])**2 * np.absolute(illuminationOTF[x][y])
-			numerator += illuminationOTF[x][y]
-			y += 1
-		y = 0
-		x += 1
-	eta = cmath.sqrt(numerator / denominator) * 1.2
+	#numerator = 0
+	#denominator = 0
+	#x = 0
+	#y = 0
+	#while x<camOTF.shape[0]:
+	#	while y<camOTF.shape[1]:
+	#		firstStep = (bandpassFilter[x][y] * detectionOTF[x][y] * camOTF[x][y])**2
+	#		secondStep = np.absolute(illuminationOTF[x][y])
+	#		denominator += (bandpassFilter[x][y] * detectionOTF[x][y] * camOTF[x][y])**2 * np.absolute(illuminationOTF[x][y])
+	#		numerator += illuminationOTF[x][y]
+	#		y += 1
+	#	y = 0
+	#	x += 1
+	#eta = cmath.sqrt(numerator / denominator) * 1.2
 
 	#Method 3 : eta is obtained experimentally from the HI and the LO images
 	#numerator = 0

@@ -8,6 +8,7 @@ class TestHiLo(unittest.TestCase):
 			image1 = np.asarray([[20, 20, 20],[20, 20, 20], [20, 20, 20]])
 			image2 = np.asarray([[3, 3, 3],[3, 3, 3], [3, 3, 3]])
 			differenceImage = fun.createDifferenceImage(speckle=image1, uniform=image2)
+
 			imgGroundTruth = np.asarray([[17, 17, 17],[17, 17, 17], [17, 17, 17]])
 			self.assertTrue(np.all(np.equal(differenceImage, imgGroundTruth))) # np.all True or False of the overall array
 
@@ -16,6 +17,7 @@ class TestHiLo(unittest.TestCase):
 			image1 = np.asarray([[1, 1, 1],[1, 1, 1],[1, 1, 1]])
 			image2 = np.asarray([[10, 10, 10],[10, 10, 10],[10, 10, 10]])
 			differenceImage = fun.createDifferenceImage(speckle=image1, uniform=image2)
+
 			imgGroundTruth = np.asarray([[0, 0, 0],[0, 0, 0], [0, 0, 0]])
 			self.assertTrue(np.all(np.equal(differenceImage, imgGroundTruth)))
 	
@@ -24,8 +26,30 @@ class TestHiLo(unittest.TestCase):
 			image1 = np.asarray([[1, 1, 1],[1, 1, 1],[1, 1, 1]])
 			image2 = np.asarray([[1, 1, 1],[1, 1, 1],[1, 1, 1]])
 			differenceImage = fun.createDifferenceImage(speckle=image1, uniform=image2)
+
 			imgGroundTruth = np.asarray([[0, 0, 0],[0, 0, 0], [0, 0, 0]])
 			self.assertTrue(np.all(np.equal(differenceImage, imgGroundTruth)))
+
+	def testSizeFFTFilter(self):
+		with self.subTest("Test the size of the numpy array that is returned after producing the fft of an image."):
+			image = np.asarray([[255, 0, 255],[255, 0, 255],[255, 0, 255]], dtype=np.uint8)
+			imageWithFilter = np.asarray([[193, 153, 193],[193, 153, 193],[193, 153, 193]], dtype=np.uint8)
+			filterOnly = fun.obtainFFTFitler(image=image, filteredImage=imageWithFilter)
+			
+			sizeFilter = filterOnly.shape
+			sizeImage = image.shape
+			self.assertEqual(sizeFilter, sizeImage)
+
+	def testGaussianFilter(self):
+		with self.subTest("Test the gaussian filter"):
+			image = np.asarray([[255, 0, 255],[255, 0, 255],[255, 0, 255]], dtype=np.uint8)
+			filteredImage = fun.gaussianFilter(sigma=1, image=image, truncate=4)
+			print(filteredImage)
+
+			trueFilteredImage = np.asarray([[193, 153, 193],[193, 153, 193],[193, 153, 193]], dtype=np.uint8)
+			self.assertTrue(np.all(np.equal(filteredImage, trueFilteredImage)))
+
+
 
 if __name__ == "__main__":
      unittest.main()
