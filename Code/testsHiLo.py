@@ -18,7 +18,7 @@ class TestHiLo(unittest.TestCase):
 			differenceImage = fun.createDifferenceImage(speckle=image1, uniform=image2)
 			imgGroundTruth = np.asarray([[0, 0, 0],[0, 0, 0], [0, 0, 0]])
 			self.assertTrue(np.all(np.equal(differenceImage, imgGroundTruth)))
-
+	
 	def testZeroRescaling(self):
 		with self.subTest("Test subtraction two images that results with some values equal to 0"):
 			image1 = np.asarray([[1, 1, 1],[1, 1, 1],[1, 1, 1]])
@@ -27,10 +27,8 @@ class TestHiLo(unittest.TestCase):
 			imgGroundTruth = np.asarray([[0, 0, 0],[0, 0, 0], [0, 0, 0]])
 			self.assertTrue(np.all(np.equal(differenceImage, imgGroundTruth)))
 
-
 if __name__ == "__main__":
      unittest.main()
-
 
 
 
