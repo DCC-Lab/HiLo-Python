@@ -16,6 +16,24 @@ def createImage(imagepath):
 
 	return imageRescale
 
+def rescaleImage(image):
+	# Find the minimal value
+	minPixel = np.amin(image)
+
+	if minPixel < 0:
+		# Rescale the data to only have positive values. 
+		i1 = 0
+		i2 = 0
+		while i1 < image.shape[0]:
+			while i2 < image.shape[1]:
+				image[i1][i2] = image[i1][i2] + abs(minPixel)
+				i2 += 1
+			i2 = 0
+			i1 += 1
+
+	return image
+
+
 def createDifferenceImage(speckle, uniform):
 	exc.isANumpyArray(speckle)
 	exc.isANumpyArray(uniform)
@@ -37,21 +55,11 @@ def createDifferenceImage(speckle, uniform):
 		i2 = 0
 		i1 += 1
 
-	# Find the minimal value
-	minPixel = np.amin(difference)
-
-	# Rescale the data to only have positive values. 
-	i1 = 0
-	i2 = 0
-	while i1 < difference.shape[0]:
-		while i2 < difference.shape[1]:
-			difference[i1][i2] = difference[i1][i2] + abs(minPixel)
-			i2 += 1
-		i2 = 0
-		i1 += 1
+	# rescale the values to get rid of the negative values. 
+	rescaledDiff = rescaleImage(difference)
 
 	# Convert data in uint16
-	differenceInInt = difference.astype(np.uint16)
+	differenceInInt = rescaledDiff.astype(np.uint16)
 
 	return differenceInInt
 
