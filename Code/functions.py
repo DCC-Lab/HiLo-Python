@@ -386,20 +386,20 @@ def estimateEta(speckle, uniform, sigma, ffthi, fftlo, sig):
 	#	x += 1
 
 	# Method 2 : Generate one value for the whole image. 
-	#numerator = 0
-	#denominator = 0
-	#x = 0
-	#y = 0
-	#while x<camOTF.shape[0]:
-	#	while y<camOTF.shape[1]:
-	#		firstStep = (bandpassFilter[x][y] * detectionOTF[x][y] * camOTF[x][y])**2
-	#		secondStep = np.absolute(illuminationOTF[x][y])
-	#		denominator += (bandpassFilter[x][y] * detectionOTF[x][y] * camOTF[x][y])**2 * np.absolute(illuminationOTF[x][y])
-	#		numerator += illuminationOTF[x][y]
-	#		y += 1
-	#	y = 0
-	#	x += 1
-	#eta = cmath.sqrt(numerator / denominator) * 1.2
+	numerator = 0
+	denominator = 0
+	x = 0
+	y = 0
+	while x<camOTF.shape[0]:
+		while y<camOTF.shape[1]:
+			firstStep = (bandpassFilter[x][y] * detectionOTF[x][y] * camOTF[x][y])**2
+			secondStep = np.absolute(illuminationOTF[x][y])
+			denominator += (bandpassFilter[x][y] * detectionOTF[x][y] * camOTF[x][y])**2 * np.absolute(illuminationOTF[x][y])
+			numerator += illuminationOTF[x][y]
+			y += 1
+		y = 0
+		x += 1
+	eta = cmath.sqrt(numerator / denominator) * 1.2
 
 	#Method 3 : eta is obtained experimentally from the HI and the LO images
 	#numerator = 0
