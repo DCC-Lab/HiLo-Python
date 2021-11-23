@@ -147,7 +147,8 @@ def valueAllPixelsInImage(image):
 		while position[1] < image.shape[1]:
 			values.append(valueOnePixel(image=image, pixelPosition=position))
 			position[1] += 1
-				
+
+		position[1] = 0
 		position[0] = position[0] + 1
 
 	return values
@@ -157,21 +158,25 @@ def valueAllPixelsInSW(image, px, samplingWindow):
 	returns:
 	list of the values of all elements in image at the pixel position px in the area of the sampling window samplingWindow. 
 	"""
-	n = int(samplingWindow/2)
-	positionInSW = [px[0]-n, px[1]-n]
+	if samplingWindow == 0:
+		return []
 
-	values = []
-	while positionInSW[0] <= px[0]+n and positionInSW[0] < image.shape[0]:
-		if positionInSW[0] < 0:
-			positionInSW[0] = 0
-		while positionInSW[1] <= px[1]+n and positionInSW[1] < image.shape[1]:
-			if positionInSW[1] < 0:  
-				positionInSW[1] = 0
-			values.append(valueOnePixel(image=image, pixelPosition=positionInSW))
-			positionInSW[1] += 1
+	else:
+		n = int(samplingWindow/2)
+		positionInSW = [px[0]-n, px[1]-n]
+
+		values = []
+		while positionInSW[0] <= px[0]+n and positionInSW[0] < image.shape[0]:
+			if positionInSW[0] < 0:
+				positionInSW[0] = 0
+			while positionInSW[1] <= px[1]+n and positionInSW[1] < image.shape[1]:
+				if positionInSW[1] < 0:  
+					positionInSW[1] = 0
+				values.append(valueOnePixel(image=image, pixelPosition=positionInSW))
+				positionInSW[1] += 1
 				
-		positionInSW[1] = px[1] - n
-		positionInSW[0] = positionInSW[0] + 1
+			positionInSW[1] = px[1] - n
+			positionInSW[0] = positionInSW[0] + 1
 
 	return values
 
