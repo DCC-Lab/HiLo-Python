@@ -136,8 +136,8 @@ def gaussianFilter(sigma, image):
 
 def valueOnePixel(image, pixelPosition):
 	value = image[pixelPosition[0]][pixelPosition[1]]
-	if value < 0:
-		value = 0
+	#if value < 0:
+	#	value = 0
 	return value
 
 def valueAllPixelsInImage(image):
@@ -177,7 +177,6 @@ def valueAllPixelsInSW(image, px, samplingWindow):
 				
 			positionInSW[1] = px[1] - n
 			positionInSW[0] = positionInSW[0] + 1
-
 	return values
 
 def absSum(array, samplingW):
@@ -193,10 +192,8 @@ def absSum(array, samplingW):
 		while pixelPosition[1] < array.shape[1]:
 			# Calculations of one pixel
 			valuesInSW = valueAllPixelsInSW(image=array, px=pixelPosition, samplingWindow=samplingW)
-			if type(array[pixelPosition[0]][pixelPosition[1]]) is np.complex128:
-				absSumValues.append(np.sum(np.absolute(valuesInSW)))
-			else:
-				absSumValues.append(np.sum(np.abs(valuesInSW)))
+			#if type(array[pixelPosition[0]][pixelPosition[1]]) is np.complex128:
+			absSumValues.append(np.abs(valuesInSW).sum())
 
 			pixelPosition[1] = pixelPosition[1] + 1
 
