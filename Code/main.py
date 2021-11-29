@@ -9,7 +9,7 @@ import re
 
 #cProfile.run('re.compile("foo|bar")')
 
-start = time.time()
+#start = time.time()
 
 # Sigma defines the width of the filter.
 sigmaValue = 2
@@ -23,5 +23,5 @@ imgHiLo = fun.createHiLoImage(uniform=imgUniform, speckle=imgSpeckle, sigma=sigm
 #tiff.imshow(imgHiLo)
 #plt.show()
 
-end = time.time()
-print(f"Execution time is {end-start}")
+#end = time.time()
+#print(f"Execution time is {end-start}")

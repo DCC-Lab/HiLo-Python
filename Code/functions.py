@@ -85,7 +85,8 @@ def cameraOTF(image):
 			y += 1
 		y = 0
 		x += 1
-
+	print(f"CAM OTF : {pixels}")
+	print(f" Image size : {image.shape[0]} X {image.shape[1]}")
 	return pixels
 
 def imagingOTF(numAperture, wavelength, magnification, pixelSize, image):
@@ -102,16 +103,48 @@ def imagingOTF(numAperture, wavelength, magnification, pixelSize, image):
 			pixel[x][y] = math.sqrt(((x+0.5-sizex/2)**2 / (sizex/2-1)**2) + ((y+0.5-sizey/2)**2 / (sizey/2-1)**2))*scaleUnits
 			if pixel[x][y] > 1:
 				pixel[x][y] = 1
+			#print(f"1 : {pixel[x][y]}")
 			pixel[x][y] = 0.6366197723675814 * math.acos(pixel[x][y]) - pixel[x][y] * math.sqrt(1-pixel[x][y]*pixel[x][y])
+			#print(f"2 : {pixel[x][y]}")
 			if pixel[x][y] < 0:
 				pixel[x][y] = 0
+			#print(f"3 : {pixel[x][y]}")
 			y += 1
 		y = 0
 		x += 1
 
 	return pixel
 
+def createBandpassFilterFourier(image, sigma):
+	# technique used by Jerome Mertz in its HiLo Fiji plugin. Bliq is also using that. 
+	sizex = image.shape[0]
+	sizey = image.shape[1]
+	ratio = 2
+
+	bigFilterConstant = (-1)*(2*np.pi/sizex)*(2*np.pi/sizey)*(sigma**2)
+	smallFilterConstant = (-1)*(2*np.pi/sizey)*(2*np.pi/sizey)*(sigma**2)*(ratio**2)
+	radial2Pixels = np.zeros(shape=(sizex, sizey), dtype=np.float64)
+	bigFilterPixels = np.zeros(shape=(sizex, sizey), dtype=np.float64)
+	smallFilterPixels = np.zeros(shape=(sizex, sizey), dtype=np.float64)
+	bandpassFilterPixels = np.zeros(shape=(sizex, sizey), dtype=np.float64)
+
+	x = 0
+	y = 0
+	while x < sizex:
+		while y < sizey:
+			radial2Pixels[x][y] = (x+0.5-sizex/2)**2+(y+0.5-sizey/2)**2
+			bigFilterPixels[x][y] = bigFilterConstant*radial2Pixels[x][y]
+			smallFilterPixels[x][y] = smallFilterConstant*radial2Pixels[x][y]
+			bigFilterPixels[x][y] = math.exp(bigFilterPixels[x][y])
+			smallFilterPixels[x][y] = math.exp(smallFilterPixels[x][y])
+			bandpassFilterPixels[x][y] = bigFilterPixels[x][y] - smallFilterPixels[x][y]
+			y += 1
+		y = 0
+		x += 1
+	return bandpassFilterPixels
+
 def obtainFFTFitler(image, filteredImage):
+	# Technique that I developped. Not sure it is good. 
 	""""
 	returns:
 	2D numpy array of complex128 numbers. 
@@ -369,9 +402,10 @@ def estimateEta(speckle, uniform, sigma, ffthi, fftlo, sig):
 	differenceImage = createDifferenceImage(speckle=speckle, uniform=uniform)
 	gaussianImage = gaussianFilter(sigma=sigma, image=differenceImage)
 	bandpassFilter = obtainFFTFitler(image=uniform, filteredImage=gaussianImage)
+	bandpassFilterFourier = createBandpassFilterFourier(image=uniform, sigma=sigma)
 
-	illuminationOTF = imagingOTF(numAperture=1, wavelength=488e-9, magnification=20, pixelSize=6.5, image=uniform)
-	detectionOTF = imagingOTF(numAperture=1, wavelength=520e-9, magnification=20, pixelSize=6.5, image=uniform)
+	illuminationOTF = imagingOTF(numAperture=1, wavelength=488, magnification=20, pixelSize=6.5, image=uniform)
+	detectionOTF = imagingOTF(numAperture=1, wavelength=520, magnification=20, pixelSize=6.5, image=uniform)
 	camOTF = cameraOTF(image=uniform)
 	print(f"Ill OTF : {illuminationOTF}{illuminationOTF.dtype}")
 	print(f"DET OTF {detectionOTF}{detectionOTF.dtype}")
@@ -396,20 +430,20 @@ def estimateEta(speckle, uniform, sigma, ffthi, fftlo, sig):
 	#	x += 1
 
 	# Method 2 : Generate one value for the whole image. 
-	#numerator = 0
-	#denominator = 0
-	#x = 0
-	#y = 0
-	#while x<camOTF.shape[0]:
-	#	while y<camOTF.shape[1]:
-	#		firstStep = (bandpassFilter[x][y] * detectionOTF[x][y] * camOTF[x][y])**2
-	#		secondStep = np.absolute(illuminationOTF[x][y])
-	#		denominator += (bandpassFilter[x][y] * detectionOTF[x][y] * camOTF[x][y])**2 * np.absolute(illuminationOTF[x][y])
-	#		numerator += illuminationOTF[x][y]
-	#		y += 1
-	#	y = 0
-	#	x += 1
-	#eta = cmath.sqrt(numerator / denominator) * 1.2
+	numerator = 0
+	denominator = 0
+	x = 0
+	y = 0
+	while x<camOTF.shape[0]:
+		while y<camOTF.shape[1]:
+			firstStep = (bandpassFilterFourier[x][y] * detectionOTF[x][y] * camOTF[x][y])**2
+			secondStep = np.absolute(illuminationOTF[x][y])
+			denominator += (bandpassFilterFourier[x][y] * detectionOTF[x][y] * camOTF[x][y])**2 * np.absolute(illuminationOTF[x][y])
+			numerator += illuminationOTF[x][y]
+			y += 1
+		y = 0
+		x += 1
+	eta = cmath.sqrt(np.mean(numerator) / np.mean(denominator)) * 1.2
 
 	#Method 3 : eta is obtained experimentally from the HI and the LO images
 	#numerator = 0
@@ -426,36 +460,36 @@ def estimateEta(speckle, uniform, sigma, ffthi, fftlo, sig):
 	#eta = numerator/denominator
 
 	#Method 4 : Eta is obtained experimentally from the HI and the LO images at the cutoff frequency
-	numerator = 0
-	denominator = 0
-	x = 0
-	y = 0
-	d = 0
-	elementPosition = []
-	cutoffhi = np.std(ffthi)*0.01
-	cutoff = 0.18*sig
+	#numerator = 0
+	#denominator = 0
+	#x = 0
+	#y = 0
+	#d = 0
+	#elementPosition = []
+	#cutoffhi = np.std(ffthi)*0.01
+	#cutoff = 0.18*sig
 
-	while x<ffthi.shape[0]:
-		while y<ffthi.shape[1]:
-			if abs(cutoff-ffthi[x][y].real) < cutoffhi:
-				#print(f"I'm adding this to numerator : {ffthi[x][y]}")
-				numerator += math.sqrt(ffthi[x][y].real**2 + ffthi[x][y].imag**2)
-				elementPosition.append([x,y])
-			y += 1
-		y = 0
-		x += 1
+	#while x<ffthi.shape[0]:
+	#	while y<ffthi.shape[1]:
+	#		if abs(cutoff-ffthi[x][y].real) < cutoffhi:
+	#			#print(f"I'm adding this to numerator : {ffthi[x][y]}")
+	#			numerator += math.sqrt(ffthi[x][y].real**2 + ffthi[x][y].imag**2)
+	#			elementPosition.append([x,y])
+	#		y += 1
+	#	y = 0
+	#	x += 1
 
-	print(len(elementPosition))
-	for i in elementPosition:
-		print(i)
-		denominator += math.sqrt(fftlo[i[0]][i[1]].real**2 + fftlo[i[0]][i[1]].imag**2)
-		d += 1
+	#print(len(elementPosition))
+	#for i in elementPosition:
+	#	print(i)
+	#	denominator += math.sqrt(fftlo[i[0]][i[1]].real**2 + fftlo[i[0]][i[1]].imag**2)
+	#	d += 1
 
-	print(f"N : {len(elementPosition)}")
-	print(f"D : {d}")
-	print(f"Num : {numerator}")
-	print(f"Den : {denominator}")
-	eta = numerator/denominator
+	#print(f"N : {len(elementPosition)}")
+	#print(f"D : {d}")
+	#print(f"Num : {numerator}")
+	#print(f"Den : {denominator}")
+	#eta = numerator/denominator
 
 
 
@@ -519,17 +553,18 @@ def createHiLoImage(uniform, speckle, sigma, sWindow):
 	y = 0
 	while x < complexHiLo.shape[0]:
 		while y < complexHiLo.shape[1]:
-			print(complexHiLo[x][y], complexHiLo[x][y].real, complexHiLo[x][y].imag)
-			HiLo[x][y] = cmath.sqrt(complexHiLo[x][y].real**2 + complexHiLo[x][y].imag**2)
+			HiLo[x][y] = math.sqrt(complexHiLo[x][y].real**2 + complexHiLo[x][y].imag**2)
 			y += 1
 		y = 0	
 		x += 1
 
 	#tiff.imshow(HiLo)
 	#plt.show()
-	tiff.imsave("/Users/valeriepineaunoel/Documents/HiLo-Python/Data/HiLoExp_2sigma_2.tiff", HiLo)
+	tiff.imsave("/Users/valeriepineaunoel/Documents/HiLo-Python/Data/20211129_HiLoExp_2sigma_eta10ish.tiff", HiLo)
 	print(f"complexHILO : {complexHiLo}{type(complexHiLo)}{complexHiLo.dtype}")
 	print(f"HILO : {HiLo}{type(HiLo)}{HiLo.dtype}")
+	tiff.imshow(HiLo)
+	plt.show()
 
 	return HiLo
 
