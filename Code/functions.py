@@ -530,16 +530,16 @@ def createHiLoImage(uniform, speckle, sigma, sWindow):
 	complexHiLo = eta*LO + HI
 
 	# convert the complexHiLo image to obtain the modulus of each values. 
-	#HiLo = np.zeros(shape=(complexHiLo.shape[0], complexHiLo.shape[1]), dtype=np.uint16)
-	#x = 0 
-	#y = 0
-	#while x < complexHiLo.shape[0]:
-	#	while y < complexHiLo.shape[1]:
-	#		print(complexHiLo[x][y], complexHiLo[x][y].real, complexHiLo[x][y].imag)
-	#		HiLo[x][y] = cmath.sqrt(complexHiLo[x][y].real**2 + complexHiLo[x][y].imag**2)
-	#		y += 1
-	#	y = 0	
-	#	x += 1
+	HiLo = np.zeros(shape=(complexHiLo.shape[0], complexHiLo.shape[1]), dtype=np.uint16)
+	x = 0 
+	y = 0
+	while x < complexHiLo.shape[0]:
+		while y < complexHiLo.shape[1]:
+			print(complexHiLo[x][y], complexHiLo[x][y].real, complexHiLo[x][y].imag)
+			HiLo[x][y] = cmath.sqrt(complexHiLo[x][y].real**2 + complexHiLo[x][y].imag**2)
+			y += 1
+		y = 0	
+		x += 1
 
 	#tiff.imshow(HiLo)
 	#plt.show()
@@ -547,7 +547,7 @@ def createHiLoImage(uniform, speckle, sigma, sWindow):
 	#print(f"complexHILO : {complexHiLo}{type(complexHiLo)}{complexHiLo.dtype}")
 	#print(f"HILO : {HiLo}{type(HiLo)}{HiLo.dtype}")
 
-	#return HiLo
+	return HiLo
 
 
 
