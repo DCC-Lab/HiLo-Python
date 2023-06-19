@@ -66,7 +66,7 @@ def cameraOTF(image):
 				pixels[x][y] = math.sin(y1)/y1
 			elif x1 != 0 and y1 == 0:
 				pixels[x][y] = math.sin(x1)/x1
-			elif x1 != 0 and y1 != 0:
+			elif x1 == 0 and y1 == 0:
 				pixels[x][y] = 1
 			if pixels[x][y] < 0:
 				pixels[x][y] = 0
@@ -215,22 +215,13 @@ def squared(array):
 	The squared value of the list, numpy.ndarray or number. The type of array is kept throughout the execution of the function. 
 	"""
 	if type(array) is np.ndarray:
-		i1 = 0
-		i2 = 0
-		while i1 < array.shape[0] : 
-			while i2 < array.shape[1]:
-				value = array[i1][i2]
-				array[i1][i2] = value**2
-				i2 += 1
-			i2 = 0
-			i1 += 1
+		newArray = array**2
 	elif type(array) is list:
-		for i in array:
-			array[i] = array[i]**2
+		newArray = [i**2 for i in array]
 	else:
-		array = array**2
+		newArray = array**2
 
-	return array
+	return newArray
 
 
 def stDevAndMeanOnePixel(image, sw, pixel):
