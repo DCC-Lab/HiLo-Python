@@ -11,7 +11,7 @@ import re
 
 start = time.time()
 
-# Sigma defines the width of the filter.
+# Sigma defines the width of the filter. A greater sigmaValue decreases the optical sectioning in the resultant HiLo image. 
 sigmaValue = 2
 
 # Step 1 : Subtract uniform from speckled image to for the difference image
