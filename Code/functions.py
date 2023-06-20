@@ -6,6 +6,7 @@ import exceptions as exc
 import matplotlib.pyplot as plt
 import skimage as ski
 import cmath as cmath
+import time
 
 def createImage(imagepath):
 	"""
@@ -25,8 +26,8 @@ def createImage(imagepath):
 
 def createDifferenceImage(speckle, uniform):
 	"""
-	This function does image_speckle-image_unform to have an image that has the speckle pattern on the object without the object. 
-	The resulting image is called the difference image. 
+	This function does image_speckle-image_unform to have an image that has the speckle pattern on the object without 
+    the object. The resulting image is called the difference image. 
 	"""
 	exc.isANumpyArray(speckle)
 	exc.isANumpyArray(uniform)
@@ -52,53 +53,48 @@ def createDifferenceImage(speckle, uniform):
 
 
 def cameraOTF(image):
-	"""Optical transfer function is the fft of the PSF. The modulation transfer function is the magnitude of the complex OTF."""
-	pixels = np.zeros(shape=(image.shape[0], image.shape[1]), dtype=np.float64)
-	x = 0
-	y = 0
-	while x < image.shape[0]:
-		while y < image.shape[1]:
-			x1 = (2*x-image.shape[0])*np.pi/image.shape[0]
-			y1 = (2*y-image.shape[1])*np.pi/image.shape[1]
-			if x1 != 0 and y1 != 0:
-				pixels[x][y] = (math.sin(x1)*math.sin(y1))/(x1*y1)
-			elif x1 == 0 and y1 != 0: 
-				pixels[x][y] = math.sin(y1)/y1
-			elif x1 != 0 and y1 == 0:
-				pixels[x][y] = math.sin(x1)/x1
-			elif x1 == 0 and y1 == 0:
-				pixels[x][y] = 1
-			if pixels[x][y] < 0:
-				pixels[x][y] = 0
-			y += 1
-		y = 0
-		x += 1
+    """
+    Optical transfer function is the fft of the PSF. The modulation transfer function is the magnitude of the
+    complex OTF.
+    """
+    sizex, sizey = image.shape[0], image.shape[1]
+    pixels = np.zeros(shape=(xshape, yshape), dtype=np.float64)
 
-	return pixels
+    for x in range(sizex):
+        for y in range(sizey):
+            x1 = (2*x-sizex)*np.pi/sizex
+            y1 = (2*y-sizey)*np.pi/sizey
+            if x1 != 0 and y1 != 0:
+                pixels[x][y] = (math.sin(x1)*math.sin(y1))/(x1*y1)
+            elif x1 == 0 and y1 != 0: 
+                pixels[x][y] = math.sin(y1)/y1
+            elif x1 != 0 and y1 == 0:
+                pixels[x][y] = math.sin(x1)/x1
+            elif x1 == 0 and y1 == 0:
+                pixels[x][y] = 1
+            if pixels[x][y] < 0:
+                pixels[x][y] = 0
+    return pixels
 
 
 def imagingOTF(numAperture, wavelength, magnification, pixelSize, image):
-	sizex = image.shape[0]
-	sizey = image.shape[1]
-	bandwidth = 2 * numAperture / (wavelength * 1e-9)
-	scaleUnits = magnification / (pixelSize * 1e-6) / bandwidth
-	pixel = np.zeros(shape=(sizex, sizey), dtype=np.float64)
+    sizex, sizey = image.shape[0], image.shape[1]
+    bandwidth = 2 * numAperture / (wavelength * 1e-9)
+    scaleUnits = magnification / (pixelSize * 1e-6) / bandwidth
+    pixel = np.zeros(shape=(sizex, sizey), dtype=np.float64)
 
-	x = 0
-	y = 0
-	while x<sizex:
-		while y<sizey:
-			pixel[x][y] = math.sqrt(((x+0.5-sizex/2)**2 / (sizex/2-1)**2) + ((y+0.5-sizey/2)**2 / (sizey/2-1)**2))*scaleUnits
-			if pixel[x][y] > 1:
-				pixel[x][y] = 1
-			pixel[x][y] = 0.6366197723675814 * math.acos(pixel[x][y]) - pixel[x][y] * math.sqrt(1-pixel[x][y]*pixel[x][y])
-			if pixel[x][y] < 0:
-				pixel[x][y] = 0
-			y += 1
-		y = 0
-		x += 1
+    for x in range(sizex):
+        for y in range(sizey):
+            pixel[x][y] = scaleUnits * math.sqrt(
+                    ((x+0.5-sizex/2)**2 / (sizex/2-1)**2) + ((y+0.5-sizey/2)**2 / (sizey/2-1)**2)
+            )
+            if pixel[x][y] > 1:
+                pixel[x][y] = 1
+            pixel[x][y] = 0.6366197723675814 * math.acos(pixel[x][y]) - pixel[x][y] * math.sqrt(1-pixel[x][y]*pixel[x][y])
+            if pixel[x][y] < 0:
+                pixel[x][y] = 0
+    return pixel
 
-	return pixel
 
 
 
@@ -121,10 +117,12 @@ def obtainFFTFitler(image, filteredImage):
 
 def applyGaussianFilter(sigma, image, truncate=4.0):
 	"""
-	Apply a Gaussian filter on the imput image. The higher the value of sigma, the bigger the filter window, the more intense the filter will be on the image. 
-	Another way of saying this is that a grater value of sigma will make the image blurrier. 
-	In the HiLo algorithm, we use a gaussian filter to increase the defocus dependence of the PSF, which leads to an improved or "stronger" optical sectioning.  
-	Sigma is the parameter that drives the optical sectioning thickness in the HiLo algorithm. 
+	Apply a Gaussian filter on the imput image. The higher the value of sigma, the bigger the filter window, the more 
+    intense the filter will be on the image. Another way of saying this is that a grater value of sigma will make the 
+    image blurrier. 
+	In the HiLo algorithm, we use a gaussian filter to increase the defocus dependence of the PSF, which leads to an 
+    improved or "stronger" optical sectioning. Sigma is the parameter that drives the optical sectioning thickness in 
+    the HiLo algorithm. 
 	"""
 	exc.isANumpyArray(image)
 	exc.isIntOrFloat(sigma)
@@ -135,7 +133,8 @@ def applyGaussianFilter(sigma, image, truncate=4.0):
 
 def valueOnePixel(image, pixelPosition):
 	"""
-	Simply extracts the value at a specific position in the image. The only reason why this is in a function is because we also want to make sure that thing pixel value is not lower than 0. 
+	Simply extracts the value at a specific position in the image. The only reason why this is in a function is because 
+    we also want to make sure that thing pixel value is not lower than 0. 
 	"""
 	value = image[pixelPosition[0]][pixelPosition[1]]
 	if value < 0:
@@ -145,15 +144,13 @@ def valueOnePixel(image, pixelPosition):
 
 def valueAllPixelsInImage(image):
 	"""
-
 	"""
 	position = [0,0]
 	values = []
 	while position[0] < image.shape[0]:
 		while position[1] < image.shape[1]:
 			values.append(valueOnePixel(image=image, pixelPosition=position))
-			position[1] += 1
-				
+			position[1] += 1				
 		position[0] = position[0] + 1
 
 	return values
@@ -161,7 +158,8 @@ def valueAllPixelsInImage(image):
 
 def valueAllPixelsInSW(image, px, samplingWindow):
 	"""
-	Generates a list of the values of all elements in image at the center pixel position px in the area of the sampling window samplingWindow. 
+	Generates a list of the values of all elements in image at the center pixel position px in the area of the sampling 
+    window samplingWindow. 
 	"""
 	n = int(samplingWindow/2)
 	positionInSW = [px[0]-n, px[1]-n]
@@ -185,7 +183,8 @@ def valueAllPixelsInSW(image, px, samplingWindow):
 def absSum(array, samplingW):
 	"""
 	returns:
-	numpy.nparray of the absolute sum of the values included in the sampling window samplingW of all pixels/elements in array.
+	numpy.nparray of the absolute sum of the values included in the sampling window samplingW of all pixels/elements in 
+    array.
 	"""
 	absSumImage = np.zeros(shape=(array.shape[0], array.shape[1]))
 	pixelPosition = [0,0]
@@ -212,7 +211,8 @@ def absSum(array, samplingW):
 def squared(array):
 	"""
 	returns:
-	The squared value of the list, numpy.ndarray or number. The type of array is kept throughout the execution of the function. 
+	The squared value of the list, numpy.ndarray or number. The type of array is kept throughout the execution of the 
+    function. 
 	"""
 	if type(array) is np.ndarray:
 		newArray = array**2
@@ -226,7 +226,8 @@ def squared(array):
 
 def stDevAndMeanOnePixel(image, sw, pixel):
 	"""
-	Calculates the stdev and the mean of one pixel according to its neighboring pixel values. Its neighboors are the pixel values in the sampling window (sw).  
+	Calculates the stdev and the mean of one pixel according to its neighboring pixel values. Its neighboors are the 
+    pixel values in the sampling window (sw).  
 	Returns one value of mean and stdev for this pixel. 
 	""" 
 	exc.isANumpyArray(image)
@@ -243,8 +244,8 @@ def stDevAndMeanOnePixel(image, sw, pixel):
 
 def stdevAndMeanWholeImage(image, samplingWindow):
 	"""
-	Calculates the stdev and the mean for each pixel in a convolution sampling window. This specific tasks is done by the function stDevAndMeanOnePixel().
-	samplingWindow defines the size of the samplingWindow. 
+	Calculates the stdev and the mean for each pixel in a convolution sampling window. This specific tasks is done by 
+    the function stDevAndMeanOnePixel().samplingWindow defines the size of the samplingWindow. 
 	Returns stDevImage and meanImage. 
 	"""
 	exc.isANumpyArray(image)
@@ -293,7 +294,7 @@ def noiseInducedBias(cameraGain, readoutNoiseVariance, imageSpeckle, imageUnifor
 	while i1 < meanUniform.shape[0]:
 		noiseArray = []
 		while i2 < meanUniform.shape[1]:
-			noiseArray.append(((np.sqrt(cameraGain*meanUniform[i1][i2]) + (cameraGain*meanSpeckle[i1][i2]) + readoutNoiseVariance) * squaredSumAbsfftFilter[i1][i2]))
+			noiseArray.append(((np.sqrt(cameraGain * meanUniform[i1][i2]) + (cameraGain * meanSpeckle[i1][i2]) + readoutNoiseVariance) * squaredSumAbsfftFilter[i1][i2]))
 
 			i2 += 1
 		bias[i1] = noiseArray	
@@ -304,7 +305,8 @@ def noiseInducedBias(cameraGain, readoutNoiseVariance, imageSpeckle, imageUnifor
 
 def contrastCalculation(uniform, speckle, samplingWindow, sigma):
 	"""
-	This function generates the contrast weighting function that peaks at 1 for in-focus regions and goes to 0 for out-of-focus regions of the difference image. 
+	This function generates the contrast weighting function that peaks at 1 for in-focus regions and goes to 0 for 
+    out-of-focus regions of the difference image. 
 	TODO : noise function calculation doesn't work
 	Returns the contrast weighting function that is the 2D size of the raw input images. 
 	"""
@@ -321,7 +323,15 @@ def contrastCalculation(uniform, speckle, samplingWindow, sigma):
 
 	#TODO : 
 	noiseFunction = np.zeros(shape=(uniform.shape[0], uniform.shape[1]))
-	# noiseFunction = noiseInducedBias(cameraGain=1, readoutNoiseVariance=0.3508935, imageSpeckle=speckle, imageUniform=uniform, difference=gaussianImage, samplingWindowSize=samplingWindow, sigma=sigma)
+	# noiseFunction = noiseInducedBias(
+    #        cameraGain=1, 
+    #        readoutNoiseVariance=0.3508935, 
+    #        imageSpeckle=speckle, 
+    #        imageUniform=uniform, 
+    #        difference=gaussianImage,
+    #        samplingWindowSize=samplingWindow, 
+    #        sigma=sigma
+    # )
 
 	# calculate the stdev and the mean of the speckle and the uniform images
 	stdevDifference, meanDifference = stdevAndMeanWholeImage(image=gaussianImage, samplingWindow=samplingWindow)
@@ -344,7 +354,7 @@ def lowpassFilter(image, sigmaFilter):
 	exc.isANumpyArray(image)
 	exc.isIntOrFloat(sigmaFilter)
 
-	x, y = np.meshgrid(np.linspace(-1,1,image.shape[0]), np.linspace(-1,1,image.shape[1]))
+	x, y = np.meshgrid(np.linspace(-1, 1, image.shape[0]), np.linspace(-1, 1, image.shape[1]))
 	d = np.sqrt(x*x+y*y)
 	sigma = (sigmaFilter*0.18)/(2*math.sqrt(2*math.log(2)))
 	mu = 0.0
@@ -367,10 +377,12 @@ def highpassFilter(low):
 def estimateEta(speckle, uniform, sigma, ffthi, fftlo, sig):
 	"""
 	TODO : It is not clear how we should evaluate the eta.
-	The LO image is always less intense than the HI image after treatments, so we need a scaling function eta to readjust the intensities of the LO image. 
-	This scaling function eta compensates for the fact that the contrast weighting function never reaches 1 even for the perfectly in-focus regions. 
-	It also prevents the discontinuities at the cutoff frequency.  
-	Returns the function eta in numpy.ndarray. Calculations taken from the java code for the HiLo Fiji plugin and from personal communication with Olivier Dupont-Therrien at Bliq Photonics
+	The LO image is always less intense than the HI image after treatments, so we need a scaling function eta to 
+    readjust the intensities of the LO image. This scaling function eta compensates for the fact that the contrast 
+    weighting function never reaches 1 even for the perfectly in-focus regions. It also prevents the discontinuities at 
+    the cutoff frequency.
+    Returns the function eta in numpy.ndarray. Calculations taken from the java code for the HiLo Fiji plugin and from 
+    personal communication with Olivier Dupont-Therrien at Bliq Photonics
 	"""
 	differenceImage = createDifferenceImage(speckle=speckle, uniform=uniform)
 	gaussianImage = applyGaussianFilter(sigma=sigma, image=differenceImage)
@@ -540,5 +552,6 @@ def createHiLoImage(uniform, speckle, sigma, sWindow):
 
 	return HiLo
 
+if __name__ == "__main__": 
 
-
+    pass
