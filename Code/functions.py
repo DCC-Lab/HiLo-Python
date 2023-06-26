@@ -7,6 +7,8 @@ import matplotlib.pyplot as plt
 import skimage as ski
 import cmath as cmath
 import time
+from rich import print
+from statistics import mean, stdev
 
 def createImage(imagepath):
 	"""
@@ -142,70 +144,37 @@ def valueOnePixel(image, pixelPosition):
 	return value
 
 
-def valueAllPixelsInImage(image):
-	"""
-	"""
-	position = [0,0]
-	values = []
-	while position[0] < image.shape[0]:
-		while position[1] < image.shape[1]:
-			values.append(valueOnePixel(image=image, pixelPosition=position))
-			position[1] += 1				
-		position[0] = position[0] + 1
-
-	return values
-
-
-def valueAllPixelsInSW(image, px, samplingWindow):
-	"""
-	Generates a list of the values of all elements in image at the center pixel position px in the area of the sampling 
+def valueAllPixelsInSW(image, pixel, size, absoluteOn):
+    """
+    Generates a list of the values of all elements in image at the center pixel position px in the area of the sampling 
     window samplingWindow. 
-	"""
-	n = int(samplingWindow/2)
-	positionInSW = [px[0]-n, px[1]-n]
-
-	values = []
-	while positionInSW[0] <= px[0]+n and positionInSW[0] < image.shape[0]:
-		if positionInSW[0] < 0:
-			positionInSW[0] = 0
-		while positionInSW[1] <= px[1]+n and positionInSW[1] < image.shape[1]:
-			if positionInSW[1] < 0:  
-				positionInSW[1] = 0
-			values.append(valueOnePixel(image=image, pixelPosition=positionInSW))
-			positionInSW[1] += 1
-				
-		positionInSW[1] = px[1] - n
-		positionInSW[0] = positionInSW[0] + 1
-
-	return values
+    """   
+    n = size // 2
+    xpixel, ypixel = pixel[0], pixel[1]
+    values = []
+    
+    for xvalue in range(xpixel - n, xpixel + n + 1):
+        for yvalue in range(ypixel - n, ypixel + n + 1):
+            if not((xvalue < 0) or (yvalue < 0) or (xvalue > image.shape[0] - 1) or (yvalue > image.shape[1] - 1)):
+                if absoluteOn == True:
+                    values.append(abs(valueOnePixel(image, (xvalue, yvalue))))
+                else:
+                    values.append(valueOnePixel(image, (xvalue, yvalue)))
+    return values
 
 
-def absSum(array, samplingW):
-	"""
-	returns:
-	numpy.nparray of the absolute sum of the values included in the sampling window samplingW of all pixels/elements in 
+def absSum(array, samplingWindow): 
+    """
+    returns:
+    numpy.nparray of the absolute sum of the values included in the sampling window samplingW of all pixels/elements in 
     array.
-	"""
-	absSumImage = np.zeros(shape=(array.shape[0], array.shape[1]))
-	pixelPosition = [0,0]
-
-	while pixelPosition[0] < array.shape[0]:
-		absSumValues = []
-		while pixelPosition[1] < array.shape[1]:
-			# Calculations of one pixel
-			valuesInSW = valueAllPixelsInSW(image=array, px=pixelPosition, samplingWindow=samplingW)
-			if type(array[pixelPosition[0]][pixelPosition[1]]) is np.complex128:
-				absSumValues.append(np.sum(np.absolute(valuesInSW)))
-			else:
-				absSumValues.append(np.sum(np.abs(valuesInSW)))
-
-			pixelPosition[1] = pixelPosition[1] + 1
-
-		absSumImage[pixelPosition[0]] = absSumValues
-		pixelPosition[1] = 0
-		pixelPosition[0] = pixelPosition[0] + 1
-
-	return absSumImage.real
+    """
+    sizex, sizey = array.shape[0], array.shape[1]
+    absSumImage = np.zeros(shape = (sizex, sizey))
+    for x in range(sizex):
+        for y in range(sizey):
+            absSumImage[x, y] = sum(valueAllPixelsInSW(array, (x, y), samplingWindow, True)) 
+    return absSumImage
 
 
 def squared(array):
@@ -224,53 +193,39 @@ def squared(array):
 	return newArray
 
 
-def stDevAndMeanOnePixel(image, sw, pixel):
-	"""
-	Calculates the stdev and the mean of one pixel according to its neighboring pixel values. Its neighboors are the 
+def stDevAndMeanOnePixel(image, samplingWindow, pixel):
+    """
+    Calculates the stdev and the mean of one pixel according to its neighboring pixel values. Its neighboors are the 
     pixel values in the sampling window (sw).  
-	Returns one value of mean and stdev for this pixel. 
-	""" 
-	exc.isANumpyArray(image)
-	exc.isInt(sw)
-
-	if type(pixel) is not list or len(pixel) != 2:
-		raise Exception("pixel must be a list of two int.")
-	 
-	valuesOfPixelInSamplingWindow = valueAllPixelsInSW(image=image, px=pixel, samplingWindow=sw)
-	std, mean = np.std(valuesOfPixelInSamplingWindow), np.mean(valuesOfPixelInSamplingWindow) 
-
-	return std, mean
+    Returns one value of mean and stdev for this pixel. 
+    """ 
+    exc.isANumpyArray(image)
+    exc.isInt(samplingWindow)
+    exc.isPixelATuple(pixel)
+    
+    valuesOfPixelsInSamplingWindow = valueAllPixelsInSW(image, pixel, samplingWindow, False)
+    stdDev, meanOfList = np.std(valuesOfPixelsInSamplingWindow), np.mean(valuesOfPixelsInSamplingWindow) 
+    
+    return stdDev, meanOfList
 
 
 def stdevAndMeanWholeImage(image, samplingWindow):
-	"""
-	Calculates the stdev and the mean for each pixel in a convolution sampling window. This specific tasks is done by 
-    the function stDevAndMeanOnePixel().samplingWindow defines the size of the samplingWindow. 
-	Returns stDevImage and meanImage. 
-	"""
-	exc.isANumpyArray(image)
-	exc.isInt(samplingWindow)
+    """
+    Calculates the stdev and the mean for each pixel in a convolution sampling window. This specific tasks is done by 
+    the function stDevAndMeanOnePixel(). samplingWindow defines the size of the samplingWindow. 
+    Returns stDevImage and meanImage. 
+    """
+    exc.isANumpyArray(image)
+    exc.isInt(samplingWindow)
 
-	stDevImage = np.zeros(shape=(image.shape[0], image.shape[1]))
-	meanImage = np.zeros(shape=(image.shape[0], image.shape[1]))
+    sizex, sizey = image.shape[0], image.shape[1]
+    stDevImage = np.zeros(shape=(sizex, sizey))
+    meanImage = np.zeros(shape=(sizex, sizey))
 	
-	pixelPosition = [0,0]
-	while pixelPosition[0] < image.shape[0]:
-		stdevArray = []
-		meanArray = []
-		while pixelPosition[1] < image.shape[1]:
-			# Calculations of one pixel
-			stdev, mean = stDevAndMeanOnePixel(image=image, sw=samplingWindow, pixel=pixelPosition)
-			stdevArray.append(stdev)
-			meanArray.append(mean)
-			pixelPosition[1] = pixelPosition[1] + 1
-
-		stDevImage[pixelPosition[0]] = stdevArray
-		meanImage[pixelPosition[0]] = meanArray
-		pixelPosition[1] = 0
-		pixelPosition[0] = pixelPosition[0] + 1
-
-	return stDevImage, meanImage
+    for x in range(sizex):
+        for y in range(sizey):
+            stDevImage[x, y], meanImage[x, y] = stDevAndMeanOnePixel(image, samplingWindow, (x, y))
+    return stDevImage, meanImage
 
 
 def noiseInducedBias(cameraGain, readoutNoiseVariance, imageSpeckle, imageUniform, difference, samplingWindowSize, sigma):
@@ -553,5 +508,22 @@ def createHiLoImage(uniform, speckle, sigma, sWindow):
 	return HiLo
 
 if __name__ == "__main__": 
+    
+    image1 = np.round(np.random.rand(1024, 1024), 2) * 100 + 500
+    image_test = np.array([[1,2,3],
+                           [4,5,6],
+                           [7,8,9]])
 
+    t2 = time.time()
+    test2 = stdevAndMeanWholeImage(image1, 3)
+    print(time.time() - t2)
+    print(test2)
+    
+    t3 = time.time()
+    test3 = stdevAndMeanWholeImage_2(image1, 3)
+    print(time.time() - t3)
+    print(test3)
+    
+    print(test2[0] == test3[0])
+    print(test2[1] == test3[1])
     pass
