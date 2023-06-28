@@ -193,69 +193,96 @@ def squared(array):
 	return newArray
 
 
-def stDevAndMeanOnePixel(image, samplingWindow, pixel):
-    """
-    Calculates the stdev and the mean of one pixel according to its neighboring pixel values. Its neighboors are the 
-    pixel values in the sampling window (sw).  
-    Returns one value of mean and stdev for this pixel. 
+def stDevOnePixel(image, samplingWindow, pixel):
+    """ 
     """ 
     exc.isANumpyArray(image)
     exc.isInt(samplingWindow)
     exc.isPixelATuple(pixel)
     
     valuesOfPixelsInSamplingWindow = valueAllPixelsInSW(image, pixel, samplingWindow, False)
-    stdDev, meanOfList = np.std(valuesOfPixelsInSamplingWindow), np.mean(valuesOfPixelsInSamplingWindow) 
+    stdDev = np.std(valuesOfPixelsInSamplingWindow) 
     
-    return stdDev, meanOfList
+    return stdDev
 
 
-def stdevAndMeanWholeImage(image, samplingWindow):
+def meanOnePixel(image, samplingWindow, pixel):
     """
-    Calculates the stdev and the mean for each pixel in a convolution sampling window. This specific tasks is done by 
-    the function stDevAndMeanOnePixel(). samplingWindow defines the size of the samplingWindow. 
-    Returns stDevImage and meanImage. 
+    """ 
+    exc.isANumpyArray(image)
+    exc.isInt(samplingWindow)
+    exc.isPixelATuple(pixel)
+    
+    valuesOfPixelsInSamplingWindow = valueAllPixelsInSW(image, pixel, samplingWindow, False)
+    meanOfList = np.mean(valuesOfPixelsInSamplingWindow) 
+    
+    return meanOfList
+
+
+def stdevWholeImage(image, samplingWindow):
+    """
     """
     exc.isANumpyArray(image)
     exc.isInt(samplingWindow)
 
     sizex, sizey = image.shape[0], image.shape[1]
     stDevImage = np.zeros(shape=(sizex, sizey))
+	
+    for x in range(sizex):
+        for y in range(sizey):
+            stDevImage[x, y] = stDevOnePixel(image, samplingWindow, (x, y))
+    return stDevImage
+
+
+def meanWholeImage(image, samplingWindow):
+    """
+    """
+    exc.isANumpyArray(image)
+    exc.isInt(samplingWindow)
+
+    sizex, sizey = image.shape[0], image.shape[1]
     meanImage = np.zeros(shape=(sizex, sizey))
 	
     for x in range(sizex):
         for y in range(sizey):
-            stDevImage[x, y], meanImage[x, y] = stDevAndMeanOnePixel(image, samplingWindow, (x, y))
-    return stDevImage, meanImage
+            meanImage[x, y] = meanOnePixel(image, samplingWindow, (x, y))
+    return meanImage
 
 
-def noiseInducedBias(cameraGain, readoutNoiseVariance, imageSpeckle, imageUniform, difference, samplingWindowSize, sigma):
-	exc.isIntOrFloat(cameraGain)
-	exc.isIntOrFloat(readoutNoiseVariance)
-	exc.isANumpyArray(imageSpeckle)
-	exc.isANumpyArray(imageUniform)
-	exc.isInt(samplingWindowSize)
+def noiseInducedBias(
+        cameraGain, 
+        readoutNoiseVariance, 
+        imageSpeckle,
+        imageUniform, 
+        difference, 
+        samplingWindowSize, 
+        sigma
+    ):
+    """
+    """
+    exc.isIntOrFloat(cameraGain)
+    exc.isIntOrFloat(readoutNoiseVariance)
+    exc.isANumpyArray(imageSpeckle)
+    exc.isANumpyArray(imageUniform)
+    exc.isInt(samplingWindowSize)
 
-	stdevSpeckle, meanSpeckle = stdevAndMeanWholeImage(image=imageSpeckle, samplingWindow=samplingWindowSize)
-	stdevUniform, meanUniform = stdevAndMeanWholeImage(image=imageUniform, samplingWindow=samplingWindowSize)
+    meanSpeckle = meanWholeImage(image=imageSpeckle, samplingWindow=samplingWindowSize)
+    meanUniform = meanWholeImage(image=imageUniform, samplingWindow=samplingWindowSize)
 
-	fftFilter = obtainFFTFitler(image=imageUniform, filteredImage=difference)
-	sumAbsfftFilter = absSum(array=fftFilter, samplingW=samplingWindowSize)
-	squaredSumAbsfftFilter = squared(array=sumAbsfftFilter)
+    fftFilter = obtainFFTFitler(image=imageUniform, filteredImage=difference)
+    sumAbsfftFilter = absSum(array=fftFilter, samplingWindow=samplingWindowSize)
+    squaredSumAbsfftFilter = sumAbsfftFilter**2
 
-	# Calculate the noise-induced biased function. 
-	i1 = 0
-	i2 = 0
-	bias = np.zeros(shape=(imageSpeckle.shape[0], imageSpeckle.shape[1]))
-	while i1 < meanUniform.shape[0]:
-		noiseArray = []
-		while i2 < meanUniform.shape[1]:
-			noiseArray.append(((np.sqrt(cameraGain * meanUniform[i1][i2]) + (cameraGain * meanSpeckle[i1][i2]) + readoutNoiseVariance) * squaredSumAbsfftFilter[i1][i2]))
-
-			i2 += 1
-		bias[i1] = noiseArray	
-		i2 = 0
-		i1 += 1
-	return bias
+    # Calculate the noise-induced biased function.
+    sizex, sizey = imageSpeckle.shape[0], imageSpeckle.shape[1]
+    bias = np.zeros(shape=(sizex, sizey))
+    for x in range(sizex):
+        for y in range(sizey):
+            bias[x, y] = (
+                    (np.sqrt(cameraGain * meanUniform[x, y]) + (cameraGain * meanSpeckle[x, y]) + readoutNoiseVariance)
+                    * squaredSumAbsfftFilter[x, y]
+            )
+    return bias
 
 
 def contrastCalculation(uniform, speckle, samplingWindow, sigma):
@@ -510,20 +537,23 @@ def createHiLoImage(uniform, speckle, sigma, sWindow):
 if __name__ == "__main__": 
     
     image1 = np.round(np.random.rand(1024, 1024), 2) * 100 + 500
-    image_test = np.array([[1,2,3],
+    image2 = np.round(np.random.rand(1024, 1024), 2) * 100 + 500 
+    image_test1 = np.array([[1,2,3],
                            [4,5,6],
                            [7,8,9]])
-
+    image_test2 = np.array([[10, 11, 12],
+                            [13, 14, 15],
+                            [16, 17, 18]])
+    
     t2 = time.time()
-    test2 = stdevAndMeanWholeImage(image1, 3)
+    test2 = noiseInducedBias()
     print(time.time() - t2)
     print(test2)
     
     t3 = time.time()
-    test3 = stdevAndMeanWholeImage_2(image1, 3)
+    test3 = noiseInducedBias_2() 
     print(time.time() - t3)
     print(test3)
-    
-    print(test2[0] == test3[0])
-    print(test2[1] == test3[1])
+
+    print(test2 == test3)
     pass
