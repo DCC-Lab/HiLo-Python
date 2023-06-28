@@ -11,19 +11,21 @@ from rich import print
 from statistics import mean, stdev
 
 def createImage(imagepath):
-	"""
-	This function is used to open an image in Python by using the path of the image defined by imagepath. 
-	1. imread is used to open the image in a 2D numpy array.
-	2. Convert the image to 16-bit unsigned integer format. 
-	Returns the 2D numpy array with 16-bit unsigned integers. 
-	"""
-	exc.isTifOrTiff(imagepath)
-	exc.isString(imagepath)
+    """
+    This function is used to open an image in Python by using the path of the image defined by imagepath. 
+    1. imread is used to open the image in a 2D numpy array.
+    2. Convert the image to 16-bit unsigned integer format. 
+    Returns the 2D numpy array with 16-bit unsigned integers. 
+    """
+    exc.isTifOrTiff(imagepath)
+    exc.isString(imagepath)
 
-	image = tiff.imread(imagepath)
-	imageRescale = ski.util.img_as_uint(image)
-
-	return imageRescale
+    image = tiff.imread(imagepath)
+    if np.min(image) < 0:
+        imageRescale = (image + abs(np.min(image))).astype("uint16")
+    else:
+        imageRescale = image.astype("uint16")
+    return imageRescale
 
 
 def createDifferenceImage(speckle, uniform):
@@ -60,7 +62,7 @@ def cameraOTF(image):
     complex OTF.
     """
     sizex, sizey = image.shape[0], image.shape[1]
-    pixels = np.zeros(shape=(xshape, yshape), dtype=np.float64)
+    pixels = np.zeros(shape=(sizex, sizey), dtype=np.float64)
 
     for x in range(sizex):
         for y in range(sizey):
@@ -316,14 +318,14 @@ def contrastCalculation(uniform, speckle, samplingWindow, sigma):
     # )
 
 	# calculate the stdev and the mean of the speckle and the uniform images
-	stdevDifference, meanDifference = stdevAndMeanWholeImage(image=gaussianImage, samplingWindow=samplingWindow)
-	stdevUniform, meanUniform = stdevAndMeanWholeImage(image=uniform, samplingWindow=samplingWindow)
+	stdevDifference = stdevWholeImage(image=gaussianImage, samplingWindow=samplingWindow)
+	meanUniform = meanWholeImage(image=uniform, samplingWindow=samplingWindow)
 
 	# subtract the noise-induced bias from the stdev of the filtered difference image
 	reducedStdevDifference = np.subtract(stdevDifference, noiseFunction)
 
 	# calculate the contrast function
-	contrastFunction = reducedStdevDifference/meanUniform
+	contrastFunction = reducedStdevDifference / meanUniform
 
 	return contrastFunction
 
@@ -337,23 +339,22 @@ def lowpassFilter(image, sigmaFilter):
 	exc.isIntOrFloat(sigmaFilter)
 
 	x, y = np.meshgrid(np.linspace(-1, 1, image.shape[0]), np.linspace(-1, 1, image.shape[1]))
-	d = np.sqrt(x*x+y*y)
-	sigma = (sigmaFilter*0.18)/(2*math.sqrt(2*math.log(2)))
+	d = np.sqrt(x**2 + y**2)
+	sigma = (sigmaFilter * 0.18) / (2 * math.sqrt(2 * math.log(2)))
 	mu = 0.0
-	gauss = (1/(sigma*2*np.pi)) * np.exp(-((d-mu)**2/(2.0*sigma**2)))
-	maxPixel = np.amax(gauss)
+	gauss = (1 / (sigma * 2 * np.pi)) * np.exp(-((d-mu)**2/(2.0*sigma**2)))
+	maxPixel = np.max(gauss)
 	gaussNorm = gauss/maxPixel
 
 	return gaussNorm
+
 
 def highpassFilter(low):
 	"""
 	The high-pass Fourier filter is produced from the low-pass Fourier filter. It is litteraly its inverse. 
 	"""
 	exc.isANumpyArray(low)
-
-	hi = 1 - low
-	return hi
+	return 1 - low
 
 
 def estimateEta(speckle, uniform, sigma, ffthi, fftlo, sig):
@@ -411,7 +412,8 @@ def estimateEta(speckle, uniform, sigma, ffthi, fftlo, sig):
 		x += 1
 	eta = cmath.sqrt(numerator / denominator) * 1.2
 
-	#Method 3 : eta is obtained experimentally from the HI and the LO images
+	#Method 3 : eta is obtained experimentally from the HI and the LO images comes
+    # Comes from the articles Daryl Lim et al. 2008
 	#numerator = 0
 	#denominator = 0
 	#x = 0
@@ -509,10 +511,7 @@ def createHiLoImage(uniform, speckle, sigma, sWindow):
 	# Estimate the function eta for scaling the frequencies of the low image. Generates a complex number. 
 	eta = estimateEta(speckle=speckle, uniform=uniform, sigma=sigma, fftlo=fftLO, ffthi=fftHI, sig=sigma)
 
-	#print(f"LO : {LO}{type(LO)}{LO.dtype}")
-	#print(f"HI : {HI}{type(HI)}{HI.dtype}")
-
-	complexHiLo = eta*LO + HI
+	complexHiLo = eta * LO + HI
 
 	# convert the complexHiLo image to obtain the modulus of each values. 
 	HiLo = np.zeros(shape=(complexHiLo.shape[0], complexHiLo.shape[1]), dtype=np.uint16)
@@ -526,34 +525,12 @@ def createHiLoImage(uniform, speckle, sigma, sWindow):
 		y = 0	
 		x += 1
 
-	#tiff.imshow(HiLo)
-	#plt.show()
-	#tiff.imsave("/Users/valeriepineaunoel/Documents/HiLo-Python/Data/HiLoExp_2sigma_2.tiff", HiLo)
-	#print(f"complexHILO : {complexHiLo}{type(complexHiLo)}{complexHiLo.dtype}")
-	#print(f"HILO : {HiLo}{type(HiLo)}{HiLo.dtype}")
-
 	return HiLo
 
-if __name__ == "__main__": 
-    
-    image1 = np.round(np.random.rand(1024, 1024), 2) * 100 + 500
-    image2 = np.round(np.random.rand(1024, 1024), 2) * 100 + 500 
+if __name__ == "__main__":  
+
+    image1 = np.round(np.random.rand(1024, 1024), 2) * 100 + 500 
     image_test1 = np.array([[1,2,3],
                            [4,5,6],
                            [7,8,9]])
-    image_test2 = np.array([[10, 11, 12],
-                            [13, 14, 15],
-                            [16, 17, 18]])
-    
-    t2 = time.time()
-    test2 = noiseInducedBias()
-    print(time.time() - t2)
-    print(test2)
-    
-    t3 = time.time()
-    test3 = noiseInducedBias_2() 
-    print(time.time() - t3)
-    print(test3)
-
-    print(test2 == test3)
     pass
