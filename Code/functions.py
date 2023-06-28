@@ -3,8 +3,6 @@ import scipy.ndimage as simg
 import numpy as np
 import math as math
 import exceptions as exc
-import matplotlib.pyplot as plt
-import skimage as ski
 import cmath as cmath
 import time
 from rich import print
@@ -374,8 +372,8 @@ def estimateEta(speckle, uniform, sigma, ffthi, fftlo, sig):
 	illuminationOTF = imagingOTF(numAperture=1, wavelength=488e-9, magnification=20, pixelSize=6.5, image=uniform)
 	detectionOTF = imagingOTF(numAperture=1, wavelength=520e-9, magnification=20, pixelSize=6.5, image=uniform)
 	camOTF = cameraOTF(image=uniform)
-	print(f"Ill OTF : {illuminationOTF}{illuminationOTF.dtype}")
-	print(f"DET OTF {detectionOTF}{detectionOTF.dtype}")
+	# print(f"Ill OTF : {illuminationOTF}{illuminationOTF.dtype}")
+	# print(f"DET OTF {detectionOTF}{detectionOTF.dtype}")
 	
 	# Method 1 : Generate a function eta for each pixels.
 	#eta = np.zeros(shape=(uniform.shape[0], uniform.shape[1]), dtype=np.complex128) 
@@ -397,20 +395,20 @@ def estimateEta(speckle, uniform, sigma, ffthi, fftlo, sig):
 	#	x += 1
 
 	# Method 2 : Generate one value for the whole image. 
-	numerator = 0
-	denominator = 0
-	x = 0
-	y = 0
-	while x<camOTF.shape[0]:
-		while y<camOTF.shape[1]:
-			firstStep = (bandpassFilter[x][y] * detectionOTF[x][y] * camOTF[x][y])**2
-			secondStep = np.absolute(illuminationOTF[x][y])
-			denominator += (bandpassFilter[x][y] * detectionOTF[x][y] * camOTF[x][y])**2 * np.absolute(illuminationOTF[x][y])
-			numerator += illuminationOTF[x][y]
-			y += 1
-		y = 0
-		x += 1
-	eta = cmath.sqrt(numerator / denominator) * 1.2
+	# numerator = 0
+	# denominator = 0
+	# x = 0
+	# y = 0
+	# while x<camOTF.shape[0]:
+	# 	while y<camOTF.shape[1]:
+	# 		firstStep = (bandpassFilter[x][y] * detectionOTF[x][y] * camOTF[x][y])**2
+	# 		secondStep = np.absolute(illuminationOTF[x][y])
+	# 		denominator += (bandpassFilter[x][y] * detectionOTF[x][y] * camOTF[x][y])**2 * np.absolute(illuminationOTF[x][y])
+	# 		numerator += illuminationOTF[x][y]
+	# 		y += 1
+	# 	y = 0
+	# 	x += 1
+	# eta = cmath.sqrt(numerator / denominator) * 1.2
 
 	#Method 3 : eta is obtained experimentally from the HI and the LO images comes
     # Comes from the articles Daryl Lim et al. 2008
@@ -447,16 +445,16 @@ def estimateEta(speckle, uniform, sigma, ffthi, fftlo, sig):
 		y = 0
 		x += 1
 
-	print(len(elementPosition))
+	# print(len(elementPosition))
 	for i in elementPosition:
-		print(i)
+		# print(i)
 		denominator += math.sqrt(fftlo[i[0]][i[1]].real**2 + fftlo[i[0]][i[1]].imag**2)
 		d += 1
 
-	print(f"N : {len(elementPosition)}")
-	print(f"D : {d}")
-	print(f"Num : {numerator}")
-	print(f"Den : {denominator}")
+	# print(f"N : {len(elementPosition)}")
+	# print(f"D : {d}")
+	# print(f"Num : {numerator}")
+	# print(f"Den : {denominator}")
 	eta = numerator/denominator
 
 
@@ -482,55 +480,60 @@ def estimateEta(speckle, uniform, sigma, ffthi, fftlo, sig):
 
 def createHiLoImage(uniform, speckle, sigma, sWindow):
 
-	# calculate the contrast weighting function
-	contrast = contrastCalculation(uniform=uniform, speckle=speckle, samplingWindow=sWindow, sigma=sigma)
+    # calculate the contrast weighting function
+    contrast = contrastCalculation(uniform=uniform, speckle=speckle, samplingWindow=sWindow, sigma=sigma)
+    print("Constrast done")
 
-	# Create the filters
-	lowFilter = lowpassFilter(image=uniform, sigmaFilter=sigma)
-	highFilter = highpassFilter(low=lowFilter)
+    # Create the filters
+    lowFilter = lowpassFilter(image=uniform, sigmaFilter=sigma)
+    highFilter = highpassFilter(low=lowFilter)
+    print("Filters done")
 
-	# Create fft of uniform image and normalize with max value
-	fftuniform = np.fft.fftshift(np.fft.fft2(uniform))
-	normfftuniform = fftuniform/np.amax(fftuniform)
+    # Create fft of uniform image and normalize with max value
+    fftuniform = np.fft.fftshift(np.fft.fft2(uniform))
+    # normfftuniform = fftuniform/np.amax(fftuniform)
 
-	# Apply the contrast weighting function on the uniform image. FFT of the result and then normalize with max value.
-	cxu = contrast*uniform
-	fftcxu = np.fft.fftshift(np.fft.fft2(cxu))
+    # Apply the contrast weighting function on the uniform image. FFT of the result and then normalize with max value.
+    cxu = contrast*uniform
+    fftcxu = np.fft.fftshift(np.fft.fft2(cxu))
+    print("Contrast applied")
 
-	# Apply the low-pass frequency filter on the uniform image to create the LO portion
-	# Ilp = LP[C*Iu]
-	fftLO = lowFilter*fftcxu
-	LO = np.fft.ifft2(np.fft.ifftshift(fftLO))
+    # Apply the low-pass frequency filter on the uniform image to create the LO portion
+    # Ilp = LP[C*Iu]
+    fftLO = lowFilter*fftcxu
+    LO = np.fft.ifft2(np.fft.ifftshift(fftLO))
+    print("LO created")
 
-	# Apply the high-pass frequency filter to the uniform image to obtain the HI portion
-	# Ihp = HP[Iu]
-	fftHI = highFilter*fftuniform
-	HI = np.fft.ifft2(np.fft.ifftshift(fftHI))
+    # Apply the high-pass frequency filter to the uniform image to obtain the HI portion
+    # Ihp = HP[Iu]
+    fftHI = highFilter*fftuniform
+    HI = np.fft.ifft2(np.fft.ifftshift(fftHI))
+    print("HI created")
 
-	# TODO: 
-	# Estimate the function eta for scaling the frequencies of the low image. Generates a complex number. 
-	eta = estimateEta(speckle=speckle, uniform=uniform, sigma=sigma, fftlo=fftLO, ffthi=fftHI, sig=sigma)
+    # TODO: 
+    # Estimate the function eta for scaling the frequencies of the low image. Generates a complex number. 
+    eta = estimateEta(speckle=speckle, uniform=uniform, sigma=sigma, fftlo=fftLO, ffthi=fftHI, sig=sigma)
+    print("Eta done")
 
-	complexHiLo = eta * LO + HI
+    complexHiLo = eta * LO + HI
 
-	# convert the complexHiLo image to obtain the modulus of each values. 
-	HiLo = np.zeros(shape=(complexHiLo.shape[0], complexHiLo.shape[1]), dtype=np.uint16)
-	x = 0 
-	y = 0
-	while x < complexHiLo.shape[0]:
-		while y < complexHiLo.shape[1]:
-			print(complexHiLo[x][y], complexHiLo[x][y].real, complexHiLo[x][y].imag)
-			HiLo[x][y] = cmath.sqrt(complexHiLo[x][y].real**2 + complexHiLo[x][y].imag**2)
-			y += 1
-		y = 0	
-		x += 1
+    # convert the complexHiLo image to obtain the modulus of each values. 
+    HiLo = np.abs(complexHiLo)
+    print("All done")
 
-	return HiLo
+    return HiLo
 
 if __name__ == "__main__":  
 
-    image1 = np.round(np.random.rand(1024, 1024), 2) * 100 + 500 
-    image_test1 = np.array([[1,2,3],
-                           [4,5,6],
-                           [7,8,9]])
+    uniformImage = createImage("/mnt/c/Users/legen/OneDrive - USherbrooke/Été 2023/Stage T3/HiLo-Python/Data/sampleuniform.tif")
+    speckleImage = createImage("/mnt/c/Users/legen/OneDrive - USherbrooke/Été 2023/Stage T3/HiLo-Python/Data/samplespeckle.tif")
+
+    t1 = time.time()
+    HiLoImage = createHiLoImage(uniformImage, speckleImage, 2, 3)
+    print(HiLoImage)
+    print(time.time() - t1)
+
+    HiLoImageToCheck = HiLoImage.astype("uint16")
+    tiff.imwrite("HiLoImageTest.png", HiLoImageToCheck)
+
     pass
