@@ -6,7 +6,7 @@ import exceptions as exc
 import cmath as cmath
 import time
 from rich import print
-from statistics import mean, stdev
+import matplotlib.pyplot as plt
 
 def createImage(imagepath):
     """
@@ -40,10 +40,10 @@ def createDifferenceImage(speckle, uniform):
 	newUniform = uniform.astype(np.float64)
 
 	# Subtraction
-	difference = np.subtract(newSpeckle, newUniform)
+	difference = newSpeckle - newUniform
 
 	# Find the minimal value
-	minPixel = np.amin(difference)
+	minPixel = np.min(difference)
 
 	# Rescale the data to only have positive values. 
 	difference = difference + abs(minPixel)
@@ -64,18 +64,18 @@ def cameraOTF(image):
 
     for x in range(sizex):
         for y in range(sizey):
-            x1 = (2*x-sizex)*np.pi/sizex
-            y1 = (2*y-sizey)*np.pi/sizey
+            x1 = (2 * x - sizex) * np.pi / sizex
+            y1 = (2 * y - sizey) * np.pi / sizey
             if x1 != 0 and y1 != 0:
-                pixels[x][y] = (math.sin(x1)*math.sin(y1))/(x1*y1)
+                pixels[x, y] = (math.sin(x1) * math.sin(y1)) / (x1 * y1)
             elif x1 == 0 and y1 != 0: 
-                pixels[x][y] = math.sin(y1)/y1
+                pixels[x, y] = math.sin(y1) / y1
             elif x1 != 0 and y1 == 0:
-                pixels[x][y] = math.sin(x1)/x1
+                pixels[x, y] = math.sin(x1) / x1
             elif x1 == 0 and y1 == 0:
-                pixels[x][y] = 1
-            if pixels[x][y] < 0:
-                pixels[x][y] = 0
+                pixels[x, y] = 1
+            if pixels[x, y] < 0:
+                pixels[x, y] = 0
     return pixels
 
 
@@ -87,17 +87,17 @@ def imagingOTF(numAperture, wavelength, magnification, pixelSize, image):
 
     for x in range(sizex):
         for y in range(sizey):
-            pixel[x][y] = scaleUnits * math.sqrt(
-                    ((x+0.5-sizex/2)**2 / (sizex/2-1)**2) + ((y+0.5-sizey/2)**2 / (sizey/2-1)**2)
+            pixel[x, y] = scaleUnits * math.sqrt(
+                    ((x + 0.5 - sizex / 2)**2 / (sizex / 2 - 1)**2) + ((y + 0.5 - sizey / 2)**2 / (sizey / 2 - 1)**2)
             )
-            if pixel[x][y] > 1:
-                pixel[x][y] = 1
-            pixel[x][y] = 0.6366197723675814 * math.acos(pixel[x][y]) - pixel[x][y] * math.sqrt(1-pixel[x][y]*pixel[x][y])
-            if pixel[x][y] < 0:
-                pixel[x][y] = 0
+            if pixel[x, y] > 1:
+                pixel[x, y] = 1
+            pixel[x, y] = 0.6366197723675814 * (
+                    math.acos(pixel[x, y]) - pixel[x, y] * math.sqrt(1 - pixel[x, y] * pixel[x, y])
+            )
+            if pixel[x, y] < 0:
+                pixel[x, y] = 0
     return pixel
-
-
 
 
 def obtainFFTFitler(image, filteredImage):
@@ -118,19 +118,18 @@ def obtainFFTFitler(image, filteredImage):
 
 
 def applyGaussianFilter(sigma, image, truncate=4.0):
-	"""
-	Apply a Gaussian filter on the imput image. The higher the value of sigma, the bigger the filter window, the more 
+    """
+    Apply a Gaussian filter on the imput image. The higher the value of sigma, the bigger the filter window, the more 
     intense the filter will be on the image. Another way of saying this is that a grater value of sigma will make the 
     image blurrier. 
-	In the HiLo algorithm, we use a gaussian filter to increase the defocus dependence of the PSF, which leads to an 
+    In the HiLo algorithm, we use a gaussian filter to increase the defocus dependence of the PSF, which leads to an 
     improved or "stronger" optical sectioning. Sigma is the parameter that drives the optical sectioning thickness in 
     the HiLo algorithm. 
-	"""
-	exc.isANumpyArray(image)
-	exc.isIntOrFloat(sigma)
-
-	imgGaussian = simg.gaussian_filter(image, sigma=sigma, truncate=truncate) 
-	return imgGaussian
+    """
+    exc.isANumpyArray(image)
+    exc.isIntOrFloat(sigma)
+    imgGaussian = simg.gaussian_filter(image, sigma=sigma, truncate=truncate)
+    return imgGaussian
 
 
 def valueOnePixel(image, pixelPosition):
@@ -340,9 +339,9 @@ def lowpassFilter(image, sigmaFilter):
 	d = np.sqrt(x**2 + y**2)
 	sigma = (sigmaFilter * 0.18) / (2 * math.sqrt(2 * math.log(2)))
 	mu = 0.0
-	gauss = (1 / (sigma * 2 * np.pi)) * np.exp(-((d-mu)**2/(2.0*sigma**2)))
+	gauss = (1 / (sigma * 2 * np.pi)) * np.exp(-((d - mu)**2 / (2.0 * sigma**2)))
 	maxPixel = np.max(gauss)
-	gaussNorm = gauss/maxPixel
+	gaussNorm = gauss / maxPixel
 
 	return gaussNorm
 
@@ -356,126 +355,126 @@ def highpassFilter(low):
 
 
 def estimateEta(speckle, uniform, sigma, ffthi, fftlo, sig):
-	"""
-	TODO : It is not clear how we should evaluate the eta.
-	The LO image is always less intense than the HI image after treatments, so we need a scaling function eta to 
+    """
+    TODO : It is not clear how we should evaluate the eta.
+    The LO image is always less intense than the HI image after treatments, so we need a scaling function eta to 
     readjust the intensities of the LO image. This scaling function eta compensates for the fact that the contrast 
     weighting function never reaches 1 even for the perfectly in-focus regions. It also prevents the discontinuities at 
     the cutoff frequency.
     Returns the function eta in numpy.ndarray. Calculations taken from the java code for the HiLo Fiji plugin and from 
     personal communication with Olivier Dupont-Therrien at Bliq Photonics
-	"""
-	differenceImage = createDifferenceImage(speckle=speckle, uniform=uniform)
-	gaussianImage = applyGaussianFilter(sigma=sigma, image=differenceImage)
-	bandpassFilter = obtainFFTFitler(image=uniform, filteredImage=gaussianImage)
+    """
+    differenceImage = createDifferenceImage(speckle=speckle, uniform=uniform)
+    gaussianImage = applyGaussianFilter(sigma=sigma, image=differenceImage)
+    bandpassFilter = obtainFFTFitler(image=uniform, filteredImage=gaussianImage)
 
-	illuminationOTF = imagingOTF(numAperture=1, wavelength=488e-9, magnification=20, pixelSize=6.5, image=uniform)
-	detectionOTF = imagingOTF(numAperture=1, wavelength=520e-9, magnification=20, pixelSize=6.5, image=uniform)
-	camOTF = cameraOTF(image=uniform)
-	# print(f"Ill OTF : {illuminationOTF}{illuminationOTF.dtype}")
-	# print(f"DET OTF {detectionOTF}{detectionOTF.dtype}")
+    illuminationOTF = imagingOTF(numAperture=1, wavelength=488e-9, magnification=20, pixelSize=6.5, image=uniform)
+    detectionOTF = imagingOTF(numAperture=1, wavelength=520e-9, magnification=20, pixelSize=6.5, image=uniform)
+    camOTF = cameraOTF(image=uniform)
+    # print(f"Ill OTF : {illuminationOTF}{illuminationOTF.dtype}")
+    # print(f"DET OTF {detectionOTF}{detectionOTF.dtype}")
 	
-	# Method 1 : Generate a function eta for each pixels.
-	#eta = np.zeros(shape=(uniform.shape[0], uniform.shape[1]), dtype=np.complex128) 
-	#x = 0
-	#y = 0
-	#while x<camOTF.shape[0]:
-	#	etaList = []
-	#	while y<camOTF.shape[1]:
-	#		denominator = (bandpassFilter[x][y] * detectionOTF[x][y] * camOTF[x][y])**2 * np.absolute(illuminationOTF[x][y])
-	#		numerator = illuminationOTF[x][y]
-	#		if denominator == 0 or numerator == 0:
-	#			result = 0
-	#		else:
-	#			result = cmath.sqrt(numerator / denominator)
-	#		etaList.append(result)
-	#		y += 1
-	#	eta[x] = etaList
-	#	y = 0
-	#	x += 1
+    # Method 1 : Generate a function eta for each pixels.
+    # eta = np.zeros(shape=(uniform.shape[0], uniform.shape[1]), dtype=np.complex128) 
+    # x = 0
+    # y = 0
+    # while x<camOTF.shape[0]:
+    #     etaList = []
+    #     while y<camOTF.shape[1]:
+    #         denominator = (bandpassFilter[x][y] * detectionOTF[x][y] * camOTF[x][y])**2 * np.absolute(illuminationOTF[x][y])
+    #         numerator = illuminationOTF[x][y]
+    #         if denominator == 0 or numerator == 0:
+    #             result = 0
+    #         else:
+    #             result = cmath.sqrt(numerator / denominator)
+    #         etaList.append(result)
+    #         y += 1
+    #     eta[x] = etaList
+    #     y = 0
+    #     x += 1
 
-	# Method 2 : Generate one value for the whole image. 
-	# numerator = 0
-	# denominator = 0
-	# x = 0
-	# y = 0
-	# while x<camOTF.shape[0]:
-	# 	while y<camOTF.shape[1]:
-	# 		firstStep = (bandpassFilter[x][y] * detectionOTF[x][y] * camOTF[x][y])**2
-	# 		secondStep = np.absolute(illuminationOTF[x][y])
-	# 		denominator += (bandpassFilter[x][y] * detectionOTF[x][y] * camOTF[x][y])**2 * np.absolute(illuminationOTF[x][y])
-	# 		numerator += illuminationOTF[x][y]
-	# 		y += 1
-	# 	y = 0
-	# 	x += 1
-	# eta = cmath.sqrt(numerator / denominator) * 1.2
+    # Method 2 : Generate one value for the whole image. 
+    # numerator = 0
+    # denominator = 0
+    # x = 0
+    # y = 0
+    # while x<camOTF.shape[0]:
+    #     while y<camOTF.shape[1]:
+    #         firstStep = (bandpassFilter[x][y] * detectionOTF[x][y] * camOTF[x][y])**2
+    #         secondStep = np.absolute(illuminationOTF[x][y])
+    #         denominator += (bandpassFilter[x][y] * detectionOTF[x][y] * camOTF[x][y])**2 * np.absolute(illuminationOTF[x][y])
+    #         numerator += illuminationOTF[x][y]
+    #         y += 1
+    #     y = 0
+    #     x += 1
+    # eta = cmath.sqrt(numerator / denominator) * 1.2
 
-	#Method 3 : eta is obtained experimentally from the HI and the LO images comes
+    #Method 3 : eta is obtained experimentally from the HI and the LO images comes
     # Comes from the articles Daryl Lim et al. 2008
-	#numerator = 0
-	#denominator = 0
-	#x = 0
-	#y = 0
-	#while x<ffthi.shape[0]:
-	#	while y<ffthi.shape[1]:
-	#		numerator += np.absolute(ffthi[x][y])
-	#		denominator += np.absolute(fftlo[x][y])
-	#		y += 1
-	#	y = 0
-	#	x += 1
-	#eta = numerator/denominator
+    numerator = 0
+    denominator = 0
+    x = 0
+    y = 0
+    while x<ffthi.shape[0]:
+        while y<ffthi.shape[1]:
+            numerator += np.absolute(ffthi[x][y])
+            denominator += np.absolute(fftlo[x][y])
+            y += 1
+        y = 0
+        x += 1
+    eta = numerator / denominator
 
-	#Method 4 : Eta is obtained experimentally from the HI and the LO images at the cutoff frequency
-	numerator = 0
-	denominator = 0
-	x = 0
-	y = 0
-	d = 0
-	elementPosition = []
-	cutoffhi = np.std(ffthi)*0.01
-	cutoff = 0.18*sig
+    #Method 4 : Eta is obtained experimentally from the HI and the LO images at the cutoff frequency
+    numerator = 0
+    denominator = 0
+    x = 0
+    y = 0
+    d = 0
+    elementPosition = []
+    cutoffhi = np.std(ffthi)*0.01
+    cutoff = 0.18*sig
 
-	while x<ffthi.shape[0]:
-		while y<ffthi.shape[1]:
-			if abs(cutoff-ffthi[x][y].real) < cutoffhi:
-				#print(f"I'm adding this to numerator : {ffthi[x][y]}")
-				numerator += math.sqrt(ffthi[x][y].real**2 + ffthi[x][y].imag**2)
-				elementPosition.append([x,y])
-			y += 1
-		y = 0
-		x += 1
+    while x<ffthi.shape[0]:
+        while y<ffthi.shape[1]:
+            if abs(cutoff-ffthi[x][y].real) < cutoffhi:
+                #print(f"I'm adding this to numerator : {ffthi[x][y]}")
+                numerator += math.sqrt(ffthi[x][y].real**2 + ffthi[x][y].imag**2)
+                elementPosition.append([x,y])
+            y += 1
+        y = 0
+        x += 1
 
-	# print(len(elementPosition))
-	for i in elementPosition:
-		# print(i)
-		denominator += math.sqrt(fftlo[i[0]][i[1]].real**2 + fftlo[i[0]][i[1]].imag**2)
-		d += 1
+    # print(len(elementPosition))
+    for i in elementPosition:
+        # print(i)
+        denominator += math.sqrt(fftlo[i[0]][i[1]].real**2 + fftlo[i[0]][i[1]].imag**2)
+        d += 1
 
-	# print(f"N : {len(elementPosition)}")
-	# print(f"D : {d}")
-	# print(f"Num : {numerator}")
-	# print(f"Den : {denominator}")
-	eta = numerator/denominator
+    # print(f"N : {len(elementPosition)}")
+    # print(f"D : {d}")
+    # print(f"Num : {numerator}")
+    # print(f"Den : {denominator}")
+    # eta = numerator / denominator
 
 
 
-	# Tried to normalize eta at some point to see what happened. Doesn't work. 
-	#normEta = np.zeros(shape=(uniform.shape[0], uniform.shape[1]), dtype=np.float64)
-	#x = 0
-	#y = 0
-	#while x < eta.shape[0]:
-	#	normEtaList = []
-	#	while y < eta.shape[1]:
-	#		normEtaValue = eta[x][y]/np.absolute(eta[x][y])
-	#		normEtaList.append(normEtaValue)
-	#		y += 1
-	#	normEta[x] = normEtaList
-	#	y = 0
-	#	x += 1
+    # Tried to normalize eta at some point to see what happened. Doesn't work. 
+    #normEta = np.zeros(shape=(uniform.shape[0], uniform.shape[1]), dtype=np.float64)
+    #x = 0
+    #y = 0
+    #while x < eta.shape[0]:
+    #	normEtaList = []
+    #	while y < eta.shape[1]:
+    #		normEtaValue = eta[x][y]/np.absolute(eta[x][y])
+    #		normEtaList.append(normEtaValue)
+    #		y += 1
+    #	normEta[x] = normEtaList
+    #	y = 0
+    #	x += 1
 
-	print(f"ETA : {eta}{type(eta)}")	
+    print(f"ETA : {eta} + {type(eta)}")	
 
-	return eta
+    return eta
 
 
 def createHiLoImage(uniform, speckle, sigma, sWindow):
@@ -523,10 +522,26 @@ def createHiLoImage(uniform, speckle, sigma, sWindow):
 
     return HiLo
 
-if __name__ == "__main__":  
 
-    uniformImage = createImage("/mnt/c/Users/legen/OneDrive - USherbrooke/Été 2023/Stage T3/HiLo-Python/Data/sampleuniform.tif")
-    speckleImage = createImage("/mnt/c/Users/legen/OneDrive - USherbrooke/Été 2023/Stage T3/HiLo-Python/Data/samplespeckle.tif")
+def showDataSet(xArray, yArray, zArray):
+    """DOCS
+    """
+    fig, ax = plt.subplots()
+    c = ax.pcolormesh(xArray, yArray, zArray, cmap = "viridis_r", vmin = np.min(zArray), vmax = np.max(zArray))
+    ax.set_xlabel("x")
+    ax.set_ylabel("y")
+    fig.colorbar(c, ax = ax, label = "z")
+    plt.show()
+    return
+
+
+if __name__ == "__main__":  
+    
+    image_test = np.random.rand(1024, 1024)
+
+    """
+    uniformImage = createImage("/Users/dcclab/Documents/Marc/HiLo-Python/Data/zebrafishUniform.tif")
+    speckleImage = createImage("/Users/dcclab/Documents/Marc/HiLo-Python/Data/zebrafishSpeckle.tif")
 
     t1 = time.time()
     HiLoImage = createHiLoImage(uniformImage, speckleImage, 2, 3)
@@ -534,6 +549,7 @@ if __name__ == "__main__":
     print(time.time() - t1)
 
     HiLoImageToCheck = HiLoImage.astype("uint16")
-    tiff.imwrite("HiLoImageTest.png", HiLoImageToCheck)
-
+    tiff.imwrite("HiLoImageTestZebrafish.tif", HiLoImageToCheck)
+    """
+    test = lowpassFilter(image_test, 2)
     pass
