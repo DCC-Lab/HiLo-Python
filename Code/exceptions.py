@@ -17,10 +17,9 @@ def isString(parameter):
 		raise Exception(f"{parameter} must be a string.")
 
 def isTifOrTiff(path):
-	tifEnd = path[-3] + path[-2] + path[-1]
-	tiffEnd = path[-4] + path[-3] + path[-2] + path[-1]
-	if tifEnd != "tif" and tiffEnd != "tiff":
-		raise Exception("Image must be a .tif of .tiff")
+    pathExtention = path.split(".")[-1]
+    if pathExtention != "tif" and pathExtention != "tiff":
+        raise Exception("Image must be a .tif of .tiff")
 
 def areValuesEqual(value1, value2):
 	if value1 != value2:
@@ -31,3 +30,7 @@ def isSameShape(image1, image2):
 		raise Exception("Images don't have the same size.")
 	elif image1.shape[1] != image2.shape[1]:
 		raise Exception("Images don't have the same size.")
+
+def isPixelATuple(pixel):
+    if type(pixel) is not tuple and len(pixel) != 2:
+        raise Exception("Pixel must be a tuple of two integers (starting from 0)!")
