@@ -194,19 +194,6 @@ class FiltersForHiLo:
         return normDoubleGaussFilter
 
 
-def simpleGaussianFilter(self):
-    """DOCS
-    """
-    sigmaFilter = (self.sigma * 0.18) / (2 * math.sqrt(2 * math.log(2)))
-    kVectorDistance = self.kSpaceX**2 + self.kSpaceY**2
-    simpleGaussFilter = (
-        (1 / (sigmaFilter * 2 * np.pi)) 
-        * np.exp(-(kVectorDistance / (2.0 * sigmaFilter**2)))
-    )
-    normSimpleGaussFilter = simpleGaussFilter / np.max(simpleGaussFilter)
-    return normSimpleGaussFilter
-
-
 def contrastCalculation(
         uniformImage: ImageForHiLo, 
         speckleImage: ImageForHiLo
