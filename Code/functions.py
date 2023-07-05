@@ -8,22 +8,31 @@ import time
 from rich import print
 import matplotlib.pyplot as plt
 
-def createImage(imagepath):
-    """
-    This function is used to open an image in Python by using the path of the image defined by imagepath. 
-    1. imread is used to open the image in a 2D numpy array.
-    2. Convert the image to 16-bit unsigned integer format. 
-    Returns the 2D numpy array with 16-bit unsigned integers. 
-    """
-    exc.isTifOrTiff(imagepath)
-    exc.isString(imagepath)
 
-    image = tiff.imread(imagepath)
-    if np.min(image) < 0:
-        imageRescale = (image + abs(np.min(image))).astype("uint16")
+def createImage(imagePath: str) -> np.ndarray:
+    """
+    This function is used to read an image and output the data related to that image. If the image as negative values,
+    it will shift the image to all positif values.
+
+    Parameters
+    ----------
+    imagePath: string
+        Path of the image to read and get the pixel values from.
+    
+    Returns
+    ----------
+    imageAsArray: np.ndarray
+        The image pixel values as a numpy 2 dimensionnal array.
+    """
+    exc.isTifOrTiff(imagePath)
+    exc.isString(imagePath)
+
+    imageAsArray = tiff.imread(imagePath)
+
+    if np.min(imageAsArray) < 0:
+        return imageAsArray + abs(np.min(imageAsArray))
     else:
-        imageRescale = image.astype("uint16")
-    return imageRescale
+        return imageAsArray
 
 
 def createDifferenceImage(speckle, uniform):
@@ -536,20 +545,4 @@ def showDataSet(xArray, yArray, zArray):
 
 
 if __name__ == "__main__":  
-    
-    image_test = np.random.rand(1024, 1024)
-
-    """
-    uniformImage = createImage("/Users/dcclab/Documents/Marc/HiLo-Python/Data/zebrafishUniform.tif")
-    speckleImage = createImage("/Users/dcclab/Documents/Marc/HiLo-Python/Data/zebrafishSpeckle.tif")
-
-    t1 = time.time()
-    HiLoImage = createHiLoImage(uniformImage, speckleImage, 2, 3)
-    print(HiLoImage)
-    print(time.time() - t1)
-
-    HiLoImageToCheck = HiLoImage.astype("uint16")
-    tiff.imwrite("HiLoImageTestZebrafish.tif", HiLoImageToCheck)
-    """
-    test = lowpassFilter(image_test, 2)
     pass
