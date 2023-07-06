@@ -15,6 +15,74 @@ plt.rcParams.update({'figure.figsize': (6.4, 4.8)})
 plt.rcParams.update({'figure.dpi': 250})
 
 
+class FiltersForHiLo:
+    """DOCS
+    """
+
+    def __init__(self, sizeOfFilter: tuple, filterType: str, sigma: float) -> None:
+        """DOCS
+        """
+        self.sizeAlongKSpaceX = sizeOfFilter[0]
+        self.sizeAlongKSpaceY = sizeOfFilter[1]
+        self.kSpaceX, self.kSpaceY = np.meshgrid(
+            fftshift(fftfreq(self.sizeAlongKSpaceX, 1)),
+            fftshift(fftfreq(self.sizeAlongKSpaceY, 1)) 
+        )
+        self.sigma = sigma
+        self.data = self.findFilterType(filterType)
+
+
+    def simpleGaussianFilter(self) -> np.ndarray:
+        """DOCS
+        """
+        sigmaFilter = (self.sigma * 0.18) / (2 * math.sqrt(2 * math.log(2)))
+        kVectorDistance = self.kSpaceX**2 + self.kSpaceY**2
+        simpleGaussFilter = (1 / (sigmaFilter * 2 * np.pi)) * np.exp(-(kVectorDistance / (2.0 * sigmaFilter**2)))
+        normSimpleGaussFilter = simpleGaussFilter / np.max(simpleGaussFilter)
+        return normSimpleGaussFilter
+    
+
+    def doubleGaussianFilter(self) -> np.ndarray:
+        """DOCS
+        """
+        firstGaussianConstant = (
+            -1.0 
+            * ((2 * math.pi) / self.sizeAlongKSpaceX) 
+            * ((2 * math.pi) / self.sizeAlongKSpaceY) 
+            * self.sigma**2
+        )
+        secondGaussianConstant = (
+            -1.0 
+            * ((2 * math.pi) / self.sizeAlongKSpaceX) 
+            * ((2 * math.pi) / self.sizeAlongKSpaceY) 
+            * self.sigma**2 
+            * waveletGaussiansRatio**2 
+        )
+        kVectorDistance = np.sqrt((self.kSpaceX)**2 + (self.kSpaceY)**2)
+        doubleGaussFilter = (
+            np.exp(kVectorDistance * firstGaussianConstant)
+            - np.exp(kVectorDistance * secondGaussianConstant)
+        )
+        normDoubleGaussFilter = doubleGaussFilter / np.max(doubleGaussFilter)
+        return normDoubleGaussFilter
+    
+
+    def findFilterType(self, filterType: str):
+        """DOCS
+        """
+        filterContainer = {
+            "lowpass": self.simpleGaussianFilter(),
+            "highpass": 1 - self.simpleGaussianFilter(),
+            "doublegauss": self.doubleGaussianFilter()
+        }
+
+        if filterType in filterContainer.keys():
+            return filterContainer[filterType]
+        else:
+            raise Exception("The filter you want does not exist, maybe you can create it?")
+
+
+
 class ImageForHiLo:
     """DOCS
     """
@@ -23,21 +91,15 @@ class ImageForHiLo:
         """DOCS
         """
         if "imagePath" in kwargs: 
-            self.data = (
-                createImageFromPath(kwargs["imagePath"])
-            ).astype(np.float64)
+            self.data = (createImageFromPath(kwargs["imagePath"])).astype(np.float64)
         else:
             self.data = kwargs["imageArray"]
 
         self.sizeAlongXAxis = self.data.shape[0]
         self.sizeAlongYAxis = self.data.shape[1]
         self.samplingWindow = samplingWindow
-        self.standardDev = np.zeros(
-            shape = (self.sizeAlongXAxis, self.sizeAlongYAxis)
-        )
-        self.mean = np.zeros(
-            shape = (self.sizeAlongXAxis, self.sizeAlongYAxis)
-        )
+        self.standardDev = np.zeros(shape = (self.sizeAlongXAxis, self.sizeAlongYAxis))
+        self.mean = np.zeros(shape = (self.sizeAlongXAxis, self.sizeAlongYAxis))
         
 
     def fftOnImage(self) -> np.ndarray:
@@ -47,19 +109,15 @@ class ImageForHiLo:
         return fftshift(fourierTransform)
 
 
-    def applyFilter(self, theFilter: np.ndarray) -> np.ndarray:
+    def applyFilter(self, theFilter: FiltersForHiLo) -> np.ndarray:
         """DOCS
         """
         imageInKSpace = self.fftOnImage()
-        imageFilteredInKSpace = imageInKSpace * theFilter
+        imageFilteredInKSpace = imageInKSpace * theFilter.data
         return ifft2(imageFilteredInKSpace)
 
 
-    def viewAllPixelsInSamplingWindow(
-        self, 
-        pixelCoords: tuple, 
-        absoluteOn: bool
-    ):
+    def viewAllPixelsInSamplingWindow(self, pixelCoords: tuple, absoluteOn: bool):
         """DOCS 
         """   
         n = self.samplingWindow // 2
@@ -68,12 +126,7 @@ class ImageForHiLo:
         
         for x in range(xPixel - n, xPixel + n + 1):
             for y in range(yPixel - n, yPixel + n + 1):
-                if not (
-                    (x < 0) 
-                    or (y < 0) 
-                    or (x > self.sizeAlongXAxis - 1) 
-                    or (y > self.sizeAlongYAxis - 1)
-                ):
+                if not ((x < 0) or (y < 0) or (x > self.sizeAlongXAxis - 1) or (y > self.sizeAlongYAxis - 1)):
                     if absoluteOn == True:
                         pixelValuesInSamplingWindow.append(abs(self.data[x, y]))
                     else:
@@ -84,10 +137,7 @@ class ImageForHiLo:
     def stdDevOnePixelWithSamplingWindow(self, pixelCoords: tuple):
         """DOCS 
         """ 
-        valuesOfPixelsInSamplingWindow = self.viewAllPixelsInSamplingWindow(
-            pixelCoords, 
-            False
-        )        
+        valuesOfPixelsInSamplingWindow = self.viewAllPixelsInSamplingWindow(pixelCoords, False)        
         return np.std(valuesOfPixelsInSamplingWindow)
 
 
@@ -96,19 +146,14 @@ class ImageForHiLo:
         """
         for x in range(self.sizeAlongXAxis):
             for y in range(self.sizeAlongYAxis):
-                self.standardDev[x, y] = self.stdDevOnePixelWithSamplingWindow(
-                    (x, y)
-                )
+                self.standardDev[x, y] = self.stdDevOnePixelWithSamplingWindow((x, y))
         return
 
 
     def meanOnePixelWithSamplingWindow(self, pixelCoords: tuple):
         """DOCS 
         """ 
-        valuesOfPixelsInSamplingWindow = self.viewAllPixelsInSamplingWindow(
-            pixelCoords, 
-            False
-        )        
+        valuesOfPixelsInSamplingWindow = self.viewAllPixelsInSamplingWindow(pixelCoords, False)        
         return np.mean(valuesOfPixelsInSamplingWindow)
 
 
@@ -117,9 +162,7 @@ class ImageForHiLo:
         """
         for x in range(self.sizeAlongXAxis):
             for y in range(self.sizeAlongYAxis):
-                self.mean[x, y] = self.meanOnePixelWithSamplingWindow(
-                    (x, y)
-                )
+                self.mean[x, y] = self.meanOnePixelWithSamplingWindow((x, y))
         return 
 
 
@@ -130,12 +173,12 @@ class ImageForHiLo:
         xAxisGrid, yAxisGrid = np.meshgrid(xAxis, yAxis)
         fig, ax = plt.subplots()
         c = ax.pcolormesh(
-        xAxisGrid, 
-        yAxisGrid, 
-        self.data, 
-        cmap = "gray",
-        vmin = np.min(self.data), 
-        vmax = np.max(self.data)
+            xAxisGrid, 
+            yAxisGrid, 
+            self.data, 
+            cmap = "gray",
+            vmin = np.min(self.data), 
+            vmax = np.max(self.data)
         )
         ax.set_xlabel(r"$x$")
         ax.set_ylabel(r"$y$")
@@ -144,84 +187,25 @@ class ImageForHiLo:
         return
 
 
-class FiltersForHiLo:
-    """DOCS
-    """
-
-    def __init__(
-            self, 
-            imageToApplyFilter: ImageForHiLo, 
-            sigma: float
-        ) -> None:
-        """DOCS
-        """
-        self.sizeAlongKSpaceX = imageToApplyFilter.sizeAlongXAxis
-        self.sizeAlongKSpaceY = imageToApplyFilter.sizeAlongYAxis
-        self.kSpaceX, self.kSpaceY = np.meshgrid(
-            fftshift(fftfreq(self.sizeAlongKSpaceX, 1)),
-            fftshift(fftfreq(self.sizeAlongKSpaceY, 1)) 
-        )
-        self.sigma = sigma
-
-
-    def simpleGaussianFilter(self):
-        """DOCS
-        """
-        sigmaFilter = (self.sigma * 0.18) / (2 * math.sqrt(2 * math.log(2)))
-        kVectorDistance = self.kSpaceX**2 + self.kSpaceY**2
-        simpleGaussFilter = (
-            (1 / (sigmaFilter * 2 * np.pi)) 
-            * np.exp(-(kVectorDistance / (2.0 * sigmaFilter**2)))
-        )
-        normSimpleGaussFilter = simpleGaussFilter / np.max(simpleGaussFilter)
-        return normSimpleGaussFilter
-    
-
-    def doubleGaussianFilter(self):
-        """DOCS
-        """
-        firstGaussianConstant = -1.0 * ((2 * math.pi) / self.sizeAlongKSpaceX) * ((2 * math.pi) / self.sizeAlongKSpaceY) * self.sigma**2
-        secondGaussianConstant = -1.0 * ((2 * math.pi) / self.sizeAlongKSpaceX) * ((2 * math.pi) / self.sizeAlongKSpaceY) * self.sigma**2 * waveletGaussiansRatio**2 
-        kVectorDistance = np.sqrt(
-            (self.kSpaceX)**2
-            + (self.kSpaceY)**2
-        )
-        doubleGaussFilter = (
-            np.exp(kVectorDistance * firstGaussianConstant)
-            - np.exp(kVectorDistance * secondGaussianConstant)
-        )
-        normDoubleGaussFilter = doubleGaussFilter / np.max(doubleGaussFilter)
-        return normDoubleGaussFilter
-
-
 def contrastCalculation(
         uniformImage: ImageForHiLo, 
-        speckleImage: ImageForHiLo
+        speckleImage: ImageForHiLo, 
+        bandpassFilter: FiltersForHiLo
     ) -> np.ndarray:
     """DOCS
     """
     differenceImage = createDifferenceImage(speckleImage, uniformImage)
 
-    bandpassFilter = FiltersForHiLo(
-        differenceImage, 
-        sigma
-    )
-
     differenceImageWithDefocusIncrease = ImageForHiLo(
         windowValue,
-        imageArray = differenceImage.applyFilter(
-            bandpassFilter.doubleGaussianFilter()
-        )
+        imageArray = differenceImage.applyFilter(bandpassFilter)
     )
 
     differenceImageWithDefocusIncrease.stdDevOfWholeImage()
     speckleImage.meanOfWholeImage()
 
     noiseInducedBias = np.zeros(
-        shape = (
-            differenceImageWithDefocusIncrease.sizeAlongXAxis, 
-            differenceImageWithDefocusIncrease.sizeAlongYAxis
-        )
+        shape = (differenceImageWithDefocusIncrease.sizeAlongXAxis, differenceImageWithDefocusIncrease.sizeAlongYAxis)
     )
 
     # For now not working
@@ -251,9 +235,8 @@ def rescaleImage(image: np.ndarray) -> np.ndarray:
 
 def createImageFromPath(imagePath: str) -> np.ndarray:
     """
-    This function is used to read an image and output the data related to that 
-    image. If the image as negative values, it will shift the image to all 
-    positive values.
+    This function is used to read an image and output the data related to that image. If the image as negative values, 
+    it will shift the image to all positive values.
 
     Parameters
     ----------
@@ -270,16 +253,11 @@ def createImageFromPath(imagePath: str) -> np.ndarray:
     return rescaleImage(imageAsArray)
 
 
-def createDifferenceImage(
-        imageBeingSubstracted: ImageForHiLo, 
-        imageToSubstract: ImageForHiLo
-    ) -> ImageForHiLo:
+def createDifferenceImage(imageBeingSubstracted: ImageForHiLo, imageToSubstract: ImageForHiLo) -> ImageForHiLo:
     """DOCS
     """
-    substractedImageData = rescaleImage(
-        imageBeingSubstracted.data - imageToSubstract.data
-    )
-    return ImageForHiLo(imageArray = substractedImageData, samplingWindow = 3)
+    substractedImageData = rescaleImage(imageBeingSubstracted.data - imageToSubstract.data)
+    return ImageForHiLo(windowValue, imageArray = substractedImageData)
 
 
 def noiseInducedBiasComputation(
@@ -317,11 +295,7 @@ def noiseInducedBiasComputation(
     return noiseBias
 
 
-def integrate2DArray(
-        xDomain: np.ndarray,
-        yDomain: np.ndarray,
-        theArray: np.ndarray,
-    ) -> float:
+def integrate2DArray(xDomain: np.ndarray, yDomain: np.ndarray, theArray: np.ndarray) -> float:
     """DOCS
     """
     firstDomainIntegration = simpson(theArray, yDomain)
@@ -352,14 +326,7 @@ def cameraOTF(sizeAlongXAxis: int, sizeAlongYAxis: int) -> np.ndarray:
     return pixelValues
 
 
-def imagingOTF(
-        sizeAlongXAxis: int, 
-        sizeAlongYAxis: int, 
-        numAperture: float,
-        wavelength: float,
-        magnification: int,
-        pixelSize: float
-    ) -> np.ndarray:
+def imagingOTF(sizeAlongXAxis: int, sizeAlongYAxis: int, numAperture: float, wavelength: float) -> np.ndarray:
     """DOCS
     """
     bandwidth = 2 * numAperture / (wavelength * 1e-9)
@@ -395,27 +362,30 @@ def imagingOTF(
     return pixelValues
 
 
-def estimateEtaValue(
-        cameraOTF: np.ndarray, 
-        detectionOTF: np.ndarray, 
-        illuminationOTF: np.ndarray,
-        bandpassFilter: FiltersForHiLo
-    ) -> float:
+def estimateEta(bandpassFilter: FiltersForHiLo) -> float:
     """DOCS
     """
-    bandpassFilterData = bandpassFilter.doubleGaussianFilter()
+    camOTF = cameraOTF(bandpassFilter.sizeAlongKSpaceX, bandpassFilter.sizeAlongKSpaceY)
+    illuminationOTF = imagingOTF(
+        bandpassFilter.sizeAlongKSpaceX, 
+        bandpassFilter.sizeAlongKSpaceY,
+        illuminationAperture,
+        illuminationWavelength
+    )
+    detectionOTF = imagingOTF(
+        bandpassFilter.sizeAlongKSpaceX,
+        bandpassFilter.sizeAlongKSpaceY,
+        detectionAperture,
+        detectionWavelength
+    )
+    bandpassFilterData = bandpassFilter.data
     fudgeFactor = 1.2
     numerator = 0
     denominator = 0
-    for x in range(cameraOTF.shape[0]):
-        for y in range(cameraOTF.shape[1]):
+    for x in range(bandpassFilter.sizeAlongKSpaceX):
+        for y in range(bandpassFilter.sizeAlongKSpaceY):
             denominator += (
-                (
-                    bandpassFilterData[x, y] 
-                    * detectionOTF[x, y] 
-                    * cameraOTF[x, y]
-                )**2 
-                * abs(illuminationOTF[x, y])
+                (bandpassFilterData[x, y] * detectionOTF[x, y] * camOTF[x, y])**2 * abs(illuminationOTF[x, y])
             )
             numerator += illuminationOTF[x, y]
 
@@ -423,76 +393,62 @@ def estimateEtaValue(
     return eta
 
 
-def createHiLoImage(
-        uniformImage: ImageForHiLo, 
-        speckleImage: ImageForHiLo
-    ) -> ImageForHiLo:
+def computeLoImageOfHiLo(uniformImage: ImageForHiLo, speckleImage: ImageForHiLo) -> ImageForHiLo:
     """DOCS
     """
-    lowpassFilter = FiltersForHiLo(
-        uniformImage, 
-        sigma
-    ).simpleGaussianFilter()
+    computeContrast = contrastCalculation(uniformImage, speckleImage)
+    contrastTimesUniform = ImageForHiLo(windowValue, imageArray = computeContrast * uniformImage.data)
+    lowpassFilter = FiltersForHiLo(contrastTimesUniform, sigma).simpleGaussianFilter()
+    loImage = contrastTimesUniform.applyFilter(lowpassFilter)
+    return ImageForHiLo(windowValue, imageArray = loImage)
+
+
+def computeHiImageOfHiLo(uniformImage: ImageForHiLo, lowpassFilter: np.ndarray) -> ImageForHiLo:
+    """DOCS
+    """
     highpassFilter = 1 - lowpassFilter
-    
+    hiImage = uniformImage.applyFilter(highpassFilter)
+    return ImageForHiLo(windowValue, imageArray = hiImage)
+
+
+def createHiLoImage(uniformImage: ImageForHiLo, speckleImage: ImageForHiLo) -> ImageForHiLo:
+    """DOCS
+    """
     speckleImage.showImageInRealSpace()
     uniformImage.showImageInRealSpace()
 
-    computeContrast = contrastCalculation(uniformImage, speckleImage)
-    contrastTimesUniform = ImageForHiLo( 
-        windowValue,
-        imageArray = computeContrast * uniformImage.data,
-    )
+    if (
+        (uniformImage.sizeAlongXAxis != speckleImage.sizeAlongXAxis) or 
+        (uniformImage.sizeAlongYAxis != uniformImage.sizeAlongYAxis)
+    ):
+        raise Exception("The size of the the speckle image and the uniform image do not match!")
 
+    sizeX, sizeY = uniformImage.sizeAlongXAxis, uniformImage.sizeAlongYAxis
+
+    # Step to compute eta 
+    bandpassFilter = FiltersForHiLo((sizeX, sizeY), "doublegauss", sigma)
+    eta = estimateEta(bandpassFilter)
+
+    # Setp to compute the Lo image of HiLo
+    computeContrast = contrastCalculation(uniformImage, speckleImage, bandpassFilter)
+    contrastTimesUniform = ImageForHiLo(windowValue, imageArray = computeContrast * uniformImage.data)
+    lowpassFilter = FiltersForHiLo((sizeX, sizeY), "lowpass", sigma)
     loImage = contrastTimesUniform.applyFilter(lowpassFilter)
+
+    # Step to compute the Hi image of HiLo
+    highpassFilter = FiltersForHiLo((sizeX, sizeY), "highpass", sigma)
     hiImage = uniformImage.applyFilter(highpassFilter)
 
-    bandpassFilter = FiltersForHiLo(uniformImage, sigma)
-    camOTF = cameraOTF(uniformImage.sizeAlongXAxis, uniformImage.sizeAlongYAxis)
-    illuminationOTF = imagingOTF(
-        uniformImage.sizeAlongXAxis, 
-        uniformImage.sizeAlongYAxis,
-        illuminationAperture,
-        illuminationWavelength,
-        magnification,
-        pixelSize
-    )
-    detectionOTF = imagingOTF(
-        uniformImage.sizeAlongXAxis,
-        uniformImage.sizeAlongYAxis,
-        detectionAperture,
-        detectionWavelength,
-        magnification,
-        pixelSize
-    )
-    eta = estimateEtaValue(
-        camOTF, 
-        detectionOTF, 
-        illuminationOTF, 
-        bandpassFilter
-    )
-
+    # Build the HiLo final image
     hiLoImage = ImageForHiLo(windowValue, imageArray = eta * np.abs(loImage) + np.abs(hiImage))
-
     return hiLoImage
 
 
-def showDataSet(
-        xArray: np.ndarray, 
-        yArray: np.ndarray, 
-        zArray: np.ndarray
-    ) -> None:
+def showDataSet(xArray: np.ndarray, yArray: np.ndarray, zArray: np.ndarray) -> None:
     """DOCS
     """
     fig, ax = plt.subplots()
-    c = ax.pcolormesh(
-        xArray, 
-        yArray, 
-        zArray, 
-        cmap = "gray",
-        vmin = np.min(zArray), 
-        vmax = np.max(zArray)
-    )
+    c = ax.pcolormesh(xArray, yArray, zArray, cmap = "gray",vmin = np.min(zArray), vmax = np.max(zArray))
     ax.set_xlabel(r"$x$")
     ax.set_ylabel(r"$y$")
     fig.colorbar(c, ax = ax, label = r"$z$")
@@ -505,7 +461,7 @@ if __name__ == "__main__":
     # Constant parameters
     cameraGain = 1
     readoutNoiseVariance = 0.3508935
-    sigma = 2
+    sigma = 10
     waveletGaussiansRatio = 2
     windowValue = 3
     illuminationAperture = 1
