@@ -5,7 +5,8 @@ from scipy.integrate import simpson
 import math
 from rich import print
 import matplotlib.pyplot as plt
-import functions as func
+import time 
+import multiprocessing as mp
 
 # matplotlib params for figures
 plt.rcParams.update({'font.size': 10})
@@ -56,7 +57,7 @@ class FiltersForHiLo:
             * ((2 * math.pi) / self.sizeAlongKSpaceX) 
             * ((2 * math.pi) / self.sizeAlongKSpaceY) 
             * self.sigma**2 
-            * waveletGaussiansRatio**2 
+            * globalConstants["waveletGaussiansRatio"]**2 
         )
         kVectorDistance = np.sqrt((self.kSpaceX)**2 + (self.kSpaceY)**2)
         doubleGaussFilter = (
@@ -197,7 +198,7 @@ def contrastCalculation(
     differenceImage = createDifferenceImage(speckleImage, uniformImage)
 
     differenceImageWithDefocusIncrease = ImageForHiLo(
-        windowValue,
+        globalConstants["windowValue"],
         imageArray = differenceImage.applyFilter(bandpassFilter)
     )
 
@@ -257,7 +258,7 @@ def createDifferenceImage(imageBeingSubstracted: ImageForHiLo, imageToSubstract:
     """DOCS
     """
     substractedImageData = rescaleImage(imageBeingSubstracted.data - imageToSubstract.data)
-    return ImageForHiLo(windowValue, imageArray = substractedImageData)
+    return ImageForHiLo(globalConstants["windowValue"], imageArray = substractedImageData)
 
 
 def noiseInducedBiasComputation(
@@ -286,9 +287,9 @@ def noiseInducedBiasComputation(
             noiseBias[x, y] = (
                     (
                         (
-                            (cameraGain * uniformImage.mean[x, y]) 
-                            + (cameraGain * speckleImage.mean[x, y]) 
-                            + readoutNoiseVariance
+                            (globalConstants["cameraGain"] * uniformImage.mean[x, y]) 
+                            + (globalConstants["cameraGain"] * speckleImage.mean[x, y]) 
+                            + globalConstants["readoutNoiseVariance"]
                     ) * filterIntegration
                 )
             )
@@ -330,7 +331,7 @@ def imagingOTF(sizeAlongXAxis: int, sizeAlongYAxis: int, numAperture: float, wav
     """DOCS
     """
     bandwidth = 2 * numAperture / (wavelength * 1e-9)
-    scaleUnits = magnification / (pixelSize * 1e-6) / bandwidth
+    scaleUnits = globalConstants["magnification"] / (globalConstants["pixelSize"] * 1e-6) / bandwidth
     pixelValues = np.zeros(shape = (sizeAlongXAxis, sizeAlongYAxis))
     for x in range(sizeAlongXAxis):
         for y in range(sizeAlongYAxis):
@@ -369,14 +370,14 @@ def estimateEta(bandpassFilter: FiltersForHiLo) -> float:
     illuminationOTF = imagingOTF(
         bandpassFilter.sizeAlongKSpaceX, 
         bandpassFilter.sizeAlongKSpaceY,
-        illuminationAperture,
-        illuminationWavelength
+        globalConstants["illuminationAperture"],
+        globalConstants["illuminationWavelength"]
     )
     detectionOTF = imagingOTF(
         bandpassFilter.sizeAlongKSpaceX,
         bandpassFilter.sizeAlongKSpaceY,
-        detectionAperture,
-        detectionWavelength
+        globalConstants["detectionAperture"],
+        globalConstants["detectionWavelength"]
     )
     bandpassFilterData = bandpassFilter.data
     fudgeFactor = 1.2
@@ -393,54 +394,61 @@ def estimateEta(bandpassFilter: FiltersForHiLo) -> float:
     return eta
 
 
-def computeLoImageOfHiLo(uniformImage: ImageForHiLo, speckleImage: ImageForHiLo) -> ImageForHiLo:
+def computeLoImageOfHiLo(
+        uniformImage: ImageForHiLo, 
+        speckleImage: ImageForHiLo, 
+        bandpassFilter: FiltersForHiLo
+    ) -> ImageForHiLo:
     """DOCS
     """
-    computeContrast = contrastCalculation(uniformImage, speckleImage)
-    contrastTimesUniform = ImageForHiLo(windowValue, imageArray = computeContrast * uniformImage.data)
-    lowpassFilter = FiltersForHiLo(contrastTimesUniform, sigma).simpleGaussianFilter()
+    contrastFunction = contrastCalculation(uniformImage, speckleImage, bandpassFilter)
+    contrastTimesUniform = ImageForHiLo(
+        globalConstants["windowValue"], 
+        imageArray = contrastFunction * uniformImage.data
+    )
+    lowpassFilter = FiltersForHiLo((sizeXForFilter, sizeYForFilter), "lowpass", globalConstants["sigma"])
     loImage = contrastTimesUniform.applyFilter(lowpassFilter)
-    return ImageForHiLo(windowValue, imageArray = loImage)
+    return ImageForHiLo(globalConstants["windowValue"], imageArray = loImage)
 
 
-def computeHiImageOfHiLo(uniformImage: ImageForHiLo, lowpassFilter: np.ndarray) -> ImageForHiLo:
+def computeHiImageOfHiLo(uniformImage: ImageForHiLo) -> ImageForHiLo:
     """DOCS
     """
-    highpassFilter = 1 - lowpassFilter
+    highpassFilter = FiltersForHiLo((sizeXForFilter, sizeYForFilter), "highpass", globalConstants["sigma"])
     hiImage = uniformImage.applyFilter(highpassFilter)
-    return ImageForHiLo(windowValue, imageArray = hiImage)
+    return ImageForHiLo(globalConstants["windowValue"], imageArray = hiImage)
 
 
-def createHiLoImage(uniformImage: ImageForHiLo, speckleImage: ImageForHiLo) -> ImageForHiLo:
+def checkIfSizeMatch(uniformImage: ImageForHiLo, speckleImage: ImageForHiLo) -> tuple:
     """DOCS
     """
-    speckleImage.showImageInRealSpace()
-    uniformImage.showImageInRealSpace()
-
     if (
         (uniformImage.sizeAlongXAxis != speckleImage.sizeAlongXAxis) or 
         (uniformImage.sizeAlongYAxis != uniformImage.sizeAlongYAxis)
     ):
         raise Exception("The size of the the speckle image and the uniform image do not match!")
+    else:
+        return uniformImage.sizeAlongXAxis, uniformImage.sizeAlongYAxis
 
-    sizeX, sizeY = uniformImage.sizeAlongXAxis, uniformImage.sizeAlongYAxis
 
+def createHiLoImage(uniformImage: ImageForHiLo, speckleImage: ImageForHiLo) -> ImageForHiLo:
+    """DOCS
+    """
     # Step to compute eta 
-    bandpassFilter = FiltersForHiLo((sizeX, sizeY), "doublegauss", sigma)
+    bandpassFilter = FiltersForHiLo((sizeXForFilter, sizeYForFilter), "doublegauss", globalConstants["sigma"])
     eta = estimateEta(bandpassFilter)
 
-    # Setp to compute the Lo image of HiLo
-    computeContrast = contrastCalculation(uniformImage, speckleImage, bandpassFilter)
-    contrastTimesUniform = ImageForHiLo(windowValue, imageArray = computeContrast * uniformImage.data)
-    lowpassFilter = FiltersForHiLo((sizeX, sizeY), "lowpass", sigma)
-    loImage = contrastTimesUniform.applyFilter(lowpassFilter)
+    loImage = computeLoImageOfHiLo(uniformImage, speckleImage, bandpassFilter)
 
     # Step to compute the Hi image of HiLo
-    highpassFilter = FiltersForHiLo((sizeX, sizeY), "highpass", sigma)
+    highpassFilter = FiltersForHiLo((sizeXForFilter, sizeYForFilter), "highpass", globalConstants["sigma"])
     hiImage = uniformImage.applyFilter(highpassFilter)
 
     # Build the HiLo final image
-    hiLoImage = ImageForHiLo(windowValue, imageArray = eta * np.abs(loImage) + np.abs(hiImage))
+    hiLoImage = ImageForHiLo(
+        globalConstants["windowValue"], 
+        imageArray = eta * np.abs(loImage.data) + np.abs(hiImage.data)
+    )
     return hiLoImage
 
 
@@ -459,27 +467,33 @@ def showDataSet(xArray: np.ndarray, yArray: np.ndarray, zArray: np.ndarray) -> N
 if __name__ == "__main__":  
 
     # Constant parameters
-    cameraGain = 1
-    readoutNoiseVariance = 0.3508935
-    sigma = 10
-    waveletGaussiansRatio = 2
-    windowValue = 3
-    illuminationAperture = 1
-    detectionAperture = 1
-    illuminationWavelength = 488e-9
-    detectionWavelength = 520e-9
-    pixelSize = 4.5
-    magnification = 20
+    globalConstants = {    
+        "cameraGain" : 1,
+        "readoutNoiseVariance" : 0.3508935,
+        "sigma" : 2,
+        "waveletGaussiansRatio" : 2,
+        "windowValue" : 3,
+        "illuminationAperture" : 1,
+        "detectionAperture" : 1,
+        "illuminationWavelength" : 488e-9,
+        "detectionWavelength" : 520e-9,
+        "pixelSize" : 4.5,
+        "magnification" : 20
+    }
 
-    # Tests
-    specklePath = "/mnt/c/Users/legen/OneDrive - USherbrooke/Été 2023/Stage T3/HiLo-Python/Code/samplespeckle.tif"
     uniformPath = "/mnt/c/Users/legen/OneDrive - USherbrooke/Été 2023/Stage T3/HiLo-Python/Code/sampleuniform.tif"
+    specklePath = "/mnt/c/Users/legen/OneDrive - USherbrooke/Été 2023/Stage T3/HiLo-Python/Code/samplespeckle.tif"
 
-    speckleObj = ImageForHiLo(imagePath = specklePath, samplingWindow = windowValue)
-    uniformObj = ImageForHiLo(imagePath = uniformPath, samplingWindow = windowValue)
+    uniformObj = ImageForHiLo(imagePath = uniformPath, samplingWindow = globalConstants["windowValue"])
+    speckleObj = ImageForHiLo(imagePath = specklePath, samplingWindow = globalConstants["windowValue"])
 
-    hiLoImageTest = createHiLoImage(uniformObj, speckleObj)
+    uniformObj.showImageInRealSpace()
+    speckleObj.showImageInRealSpace()
+    sizeXForFilter, sizeYForFilter = checkIfSizeMatch(uniformObj, speckleObj)
 
-    hiLoImageTest.showImageInRealSpace()
+    t1 = time.time()
+    hiLoImage = createHiLoImage(uniformObj, speckleObj)
+    print(time.time() - t1)
 
+    hiLoImage.showImageInRealSpace()
     pass
