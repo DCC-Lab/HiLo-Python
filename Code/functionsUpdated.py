@@ -6,7 +6,7 @@ import math
 from rich import print
 import matplotlib.pyplot as plt
 import time 
-import multiprocessing as mp
+import multiprocess as mp
 
 # matplotlib params for figures
 plt.rcParams.update({'font.size': 10})
@@ -120,7 +120,7 @@ class ImageForHiLo:
 
     def viewAllPixelsInSamplingWindow(self, pixelCoords: tuple, absoluteOn: bool):
         """DOCS 
-        """   
+        """
         n = self.samplingWindow // 2
         xPixel, yPixel = pixelCoords[0], pixelCoords[1]
         pixelValuesInSamplingWindow = []
@@ -154,7 +154,7 @@ class ImageForHiLo:
     def meanOnePixelWithSamplingWindow(self, pixelCoords: tuple):
         """DOCS 
         """ 
-        valuesOfPixelsInSamplingWindow = self.viewAllPixelsInSamplingWindow(pixelCoords, False)        
+        valuesOfPixelsInSamplingWindow = self.viewAllPixelsInSamplingWindow(pixelCoords, False) 
         return np.mean(valuesOfPixelsInSamplingWindow)
 
 
@@ -186,7 +186,7 @@ class ImageForHiLo:
         fig.colorbar(c, ax = ax, label = r"Intensity")
         plt.show()
         return
-
+    
 
 def contrastCalculation(
         uniformImage: ImageForHiLo, 
@@ -452,6 +452,16 @@ def createHiLoImage(uniformImage: ImageForHiLo, speckleImage: ImageForHiLo) -> I
     return hiLoImage
 
 
+def sendMultiprocessingUnits(functionToSplit, paramsToIterateOver: list) -> np.ndarray:
+    """DOCS
+    """
+    processes = mp.Pool()
+    resultingArray = processes.starmap(functionToSplit, paramsToIterateOver)
+    processes.close()
+    processes.join()
+    return resultingArray
+
+
 def showDataSet(xArray: np.ndarray, yArray: np.ndarray, zArray: np.ndarray) -> None:
     """DOCS
     """
@@ -484,16 +494,12 @@ if __name__ == "__main__":
     uniformPath = "/mnt/c/Users/legen/OneDrive - USherbrooke/Été 2023/Stage T3/HiLo-Python/Code/sampleuniform.tif"
     specklePath = "/mnt/c/Users/legen/OneDrive - USherbrooke/Été 2023/Stage T3/HiLo-Python/Code/samplespeckle.tif"
 
-    uniformObj = ImageForHiLo(imagePath = uniformPath, samplingWindow = globalConstants["windowValue"])
-    speckleObj = ImageForHiLo(imagePath = specklePath, samplingWindow = globalConstants["windowValue"])
-
-    uniformObj.showImageInRealSpace()
-    speckleObj.showImageInRealSpace()
+    uniformObj = ImageForHiLo(imageArray = np.random.rand(1024, 1024) * 100 + 500, samplingWindow = globalConstants["windowValue"])
+    speckleObj = ImageForHiLo(imageArray = np.random.rand(1024, 1024) * 100 + 500, samplingWindow = globalConstants["windowValue"])
     sizeXForFilter, sizeYForFilter = checkIfSizeMatch(uniformObj, speckleObj)
 
     t1 = time.time()
     hiLoImage = createHiLoImage(uniformObj, speckleObj)
     print(time.time() - t1)
-
     hiLoImage.showImageInRealSpace()
     pass
