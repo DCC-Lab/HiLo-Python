@@ -7,13 +7,14 @@ from rich import print
 import matplotlib.pyplot as plt
 import time 
 import multiprocess as mp
+import glob
+import os
 
 # matplotlib params for figures
 plt.rcParams.update({'font.size': 10})
 plt.rcParams.update({'font.family': "serif"})
-plt.rcParams.update({'text.usetex': True})
 plt.rcParams.update({'figure.figsize': (6.4, 4.8)})
-plt.rcParams.update({'figure.dpi': 250})
+plt.rcParams.update({'figure.dpi': 150})
 
 
 class FiltersForHiLo:
@@ -181,9 +182,9 @@ class ImageForHiLo:
             vmin = np.min(self.data), 
             vmax = np.max(self.data)
         )
-        ax.set_xlabel(r"$x$")
-        ax.set_ylabel(r"$y$")
-        fig.colorbar(c, ax = ax, label = r"Intensity")
+        ax.set_xlabel("x")
+        ax.set_ylabel("y")
+        fig.colorbar(c, ax = ax, label = "Intensity")
         plt.show()
         return
     
@@ -218,7 +219,7 @@ def contrastCalculation(
 
     constrastFunctionSquared = (
         (differenceImageWithDefocusIncrease.standardDev**2 - noiseInducedBias) / 
-        speckleImage.mean**2
+        np.mean(speckleImage.data)**2
     )
 
     return np.sqrt(constrastFunctionSquared)
@@ -431,24 +432,36 @@ def checkIfSizeMatch(uniformImage: ImageForHiLo, speckleImage: ImageForHiLo) -> 
         return uniformImage.sizeAlongXAxis, uniformImage.sizeAlongYAxis
 
 
+def checkIfLengthMatch(allUniformPath: list, allSpecklePath: list) -> None:
+    """DOCS
+    """
+    if len(allUniformPath) != len(allSpecklePath):
+        raise Exception("The number of uniform and speckle images is not the same!")
+    return
+
+
 def createHiLoImage(uniformImage: ImageForHiLo, speckleImage: ImageForHiLo) -> ImageForHiLo:
     """DOCS
     """
     # Step to compute eta 
     bandpassFilter = FiltersForHiLo((sizeXForFilter, sizeYForFilter), "doublegauss", globalConstants["sigma"])
     eta = estimateEta(bandpassFilter)
+    print("Eta estimated!")
 
     loImage = computeLoImageOfHiLo(uniformImage, speckleImage, bandpassFilter)
+    print("Lo image done!")
 
     # Step to compute the Hi image of HiLo
     highpassFilter = FiltersForHiLo((sizeXForFilter, sizeYForFilter), "highpass", globalConstants["sigma"])
     hiImage = uniformImage.applyFilter(highpassFilter)
+    print("Hi image done")
 
     # Build the HiLo final image
     hiLoImage = ImageForHiLo(
         globalConstants["windowValue"], 
         imageArray = eta * np.abs(loImage.data) + np.abs(hiImage.data)
     )
+    print("HiLo image done!")
     return hiLoImage
 
 
@@ -462,20 +475,50 @@ def sendMultiprocessingUnits(functionToSplit, paramsToIterateOver: list) -> np.n
     return resultingArray
 
 
-def showDataSet(xArray: np.ndarray, yArray: np.ndarray, zArray: np.ndarray) -> None:
+def sortListOfImageFiles(imageFilePath: str) -> int:
     """DOCS
     """
-    fig, ax = plt.subplots()
-    c = ax.pcolormesh(xArray, yArray, zArray, cmap = "gray",vmin = np.min(zArray), vmax = np.max(zArray))
-    ax.set_xlabel(r"$x$")
-    ax.set_ylabel(r"$y$")
-    fig.colorbar(c, ax = ax, label = r"$z$")
-    plt.show()
-    return
+    return int(imageFilePath.split("TimeLapse_")[1].split("-")[0])
+
+
+def readFilesInDirectory(directoryToRead: str) -> list:
+    """DOCS
+    """
+    allFilesInDirectory = [files for files in glob.glob(directoryToRead + "*.tif")]
+    return sorted(allFilesInDirectory, key = sortListOfImageFiles)
+
+
+def obtainUniformAndSpecklesFromDir(uniformDirectory: str, speckleDirectory: str) -> tuple:
+    """DOCS
+    """
+    uniformFiles, speckleFiles = readFilesInDirectory(uniformDirectory), readFilesInDirectory(speckleDirectory)
+    return uniformFiles, speckleFiles
+
+
+def buildUniformAndSpeckleObjects(allUniformPath: list, allSpecklePath: list) -> list:
+    """DOCS
+    """
+    checkIfLengthMatch(allUniformPath, allSpecklePath)
+    allImageForHiLo = [
+            (
+                ImageForHiLo(imagePath = unif, samplingWindow = globalConstants["windowValue"]), 
+                ImageForHiLo(imagePath = speck, samplingWindow = globalConstants["windowValue"])
+            )
+            for unif, speck in zip(allUniformPath, allSpecklePath)
+    ]
+    sizeXForFilter, sizeYForFilter = checkIfSizeMatch(allImageForHiLo[0][0], allImageForHiLo[0][1])
+    return allImageForHiLo, sizeXForFilter, sizeYForFilter
+
+
+def buildHiLoImagesDirectory(principalDirectory: str, allHiLoImages: list) -> None:
+    """DOCS
+    """
+    hiLoImagesData = [(image.data).astype(np.int16) for image in allHiLoImages]
+    os.chdir(mainDirectory)
+    return tf.imwrite("finalHiLoImages.tif", hiLoImagesData)
 
 
 if __name__ == "__main__":  
-
     # Constant parameters
     globalConstants = {    
         "cameraGain" : 1,
@@ -491,15 +534,20 @@ if __name__ == "__main__":
         "magnification" : 20
     }
 
-    uniformPath = "/mnt/c/Users/legen/OneDrive - USherbrooke/Été 2023/Stage T3/HiLo-Python/Code/sampleuniform.tif"
-    specklePath = "/mnt/c/Users/legen/OneDrive - USherbrooke/Été 2023/Stage T3/HiLo-Python/Code/samplespeckle.tif"
+    mainDirectory = "/Users/dcclab/Desktop/MainDir/"
+    allUniformPath, allSpecklePath = obtainUniformAndSpecklesFromDir(
+            "/Users/dcclab/Desktop/MainDir/Test_unif/", 
+            "/Users/dcclab/Desktop/MainDir/Test_speck/"
+    )
 
-    uniformObj = ImageForHiLo(imageArray = np.random.rand(1024, 1024) * 100 + 500, samplingWindow = globalConstants["windowValue"])
-    speckleObj = ImageForHiLo(imageArray = np.random.rand(1024, 1024) * 100 + 500, samplingWindow = globalConstants["windowValue"])
-    sizeXForFilter, sizeYForFilter = checkIfSizeMatch(uniformObj, speckleObj)
+    allImageForHiLo, sizeXForFilter, sizeYForFilter = buildUniformAndSpeckleObjects(allUniformPath, allSpecklePath)
+    print("All images initialized!")
 
+    print("Let's go!")
     t1 = time.time()
-    hiLoImage = createHiLoImage(uniformObj, speckleObj)
+    hiLoImages = sendMultiprocessingUnits(createHiLoImage, allImageForHiLo)
     print(time.time() - t1)
-    hiLoImage.showImageInRealSpace()
+
+    buildHiLoImagesDirectory(mainDirectory, hiLoImages)
+
     pass
