@@ -1,20 +1,16 @@
-import tifffile as tf
+"""
+Brief explanation of what the file does
+"""
 import numpy as np
+import math
+import matplotlib.pyplot as plt
 from scipy.fft import fft2, ifft2, fftshift, fftfreq
 from scipy.integrate import simpson
-import math
-from rich import print
-import matplotlib.pyplot as plt
-import time 
 import multiprocess as mp
 import glob
 import os
-
-# matplotlib params for figures
-plt.rcParams.update({'font.size': 10})
-plt.rcParams.update({'font.family': "serif"})
-plt.rcParams.update({'figure.figsize': (6.4, 4.8)})
-plt.rcParams.update({'figure.dpi': 150})
+import tifffile as tf
+import globalUtilities as gu
 
 
 class FiltersForHiLo:
@@ -27,8 +23,12 @@ class FiltersForHiLo:
         self.sizeAlongKSpaceX = sizeOfFilter[0]
         self.sizeAlongKSpaceY = sizeOfFilter[1]
         self.kSpaceX, self.kSpaceY = np.meshgrid(
-            fftshift(fftfreq(self.sizeAlongKSpaceX, 1)),
-            fftshift(fftfreq(self.sizeAlongKSpaceY, 1)) 
+            range(self.sizeAlongKSpaceX),
+            range(self.sizeAlongKSpaceY) 
+        )
+        self.kVectorDistance = (
+            (self.kSpaceX + 0.5 - (self.sizeAlongKSpaceX / 2))**2
+            + (self.kSpaceY + 0.5 - (self.sizeAlongKSpaceY / 2))**2 
         )
         self.sigma = sigma
         self.data = self.findFilterType(filterType)
@@ -37,9 +37,7 @@ class FiltersForHiLo:
     def simpleGaussianFilter(self) -> np.ndarray:
         """DOCS
         """
-        sigmaFilter = (self.sigma * 0.18) / (2 * math.sqrt(2 * math.log(2)))
-        kVectorDistance = self.kSpaceX**2 + self.kSpaceY**2
-        simpleGaussFilter = (1 / (sigmaFilter * 2 * np.pi)) * np.exp(-(kVectorDistance / (2.0 * sigmaFilter**2)))
+        simpleGaussFilter = np.exp(-(self.kVectorDistance / (2.0 * self.sigma**2)))
         normSimpleGaussFilter = simpleGaussFilter / np.max(simpleGaussFilter)
         return normSimpleGaussFilter
     
@@ -49,21 +47,20 @@ class FiltersForHiLo:
         """
         firstGaussianConstant = (
             -1.0 
-            * ((2 * math.pi) / self.sizeAlongKSpaceX) 
-            * ((2 * math.pi) / self.sizeAlongKSpaceY) 
+            * ((2 * np.pi) / self.sizeAlongKSpaceX) 
+            * ((2 * np.pi) / self.sizeAlongKSpaceY) 
             * self.sigma**2
         )
         secondGaussianConstant = (
             -1.0 
-            * ((2 * math.pi) / self.sizeAlongKSpaceX) 
-            * ((2 * math.pi) / self.sizeAlongKSpaceY) 
+            * ((2 * np.pi) / self.sizeAlongKSpaceX) 
+            * ((2 * np.pi) / self.sizeAlongKSpaceY) 
             * self.sigma**2 
-            * globalConstants["waveletGaussiansRatio"]**2 
+            * globalParams["waveletGaussiansRatio"]**2 
         )
-        kVectorDistance = np.sqrt((self.kSpaceX)**2 + (self.kSpaceY)**2)
         doubleGaussFilter = (
-            np.exp(kVectorDistance * firstGaussianConstant)
-            - np.exp(kVectorDistance * secondGaussianConstant)
+            np.exp(self.kVectorDistance * firstGaussianConstant)
+            - np.exp(self.kVectorDistance * secondGaussianConstant)
         )
         normDoubleGaussFilter = doubleGaussFilter / np.max(doubleGaussFilter)
         return normDoubleGaussFilter
@@ -100,9 +97,9 @@ class ImageForHiLo:
         self.sizeAlongXAxis = self.data.shape[0]
         self.sizeAlongYAxis = self.data.shape[1]
         self.samplingWindow = samplingWindow
-        self.standardDev = np.zeros(shape = (self.sizeAlongXAxis, self.sizeAlongYAxis))
-        self.mean = np.zeros(shape = (self.sizeAlongXAxis, self.sizeAlongYAxis))
-        
+        self.standardDev = np.ndarray(shape = (self.sizeAlongXAxis, self.sizeAlongYAxis))
+        self.mean = np.ndarray(shape = (self.sizeAlongXAxis, self.sizeAlongYAxis)) 
+
 
     def fftOnImage(self) -> np.ndarray:
         """DOCS
@@ -119,7 +116,7 @@ class ImageForHiLo:
         return ifft2(imageFilteredInKSpace)
 
 
-    def viewAllPixelsInSamplingWindow(self, pixelCoords: tuple, absoluteOn: bool):
+    def viewAllPixelsInSamplingWindow(self, pixelCoords: tuple) -> list:
         """DOCS 
         """
         n = self.samplingWindow // 2
@@ -129,43 +126,26 @@ class ImageForHiLo:
         for x in range(xPixel - n, xPixel + n + 1):
             for y in range(yPixel - n, yPixel + n + 1):
                 if not ((x < 0) or (y < 0) or (x > self.sizeAlongXAxis - 1) or (y > self.sizeAlongYAxis - 1)):
-                    if absoluteOn == True:
-                        pixelValuesInSamplingWindow.append(abs(self.data[x, y]))
-                    else:
                         pixelValuesInSamplingWindow.append(self.data[x, y])
         return pixelValuesInSamplingWindow
+ 
 
-
-    def stdDevOnePixelWithSamplingWindow(self, pixelCoords: tuple):
-        """DOCS 
-        """ 
-        valuesOfPixelsInSamplingWindow = self.viewAllPixelsInSamplingWindow(pixelCoords, False)        
-        return np.std(valuesOfPixelsInSamplingWindow)
-
-
-    def stdDevOfWholeImage(self) -> np.ndarray:
+    def stdDevOfWholeImage(self) -> None:
         """DOCS
         """
         for x in range(self.sizeAlongXAxis):
             for y in range(self.sizeAlongYAxis):
-                self.standardDev[x, y] = self.stdDevOnePixelWithSamplingWindow((x, y))
+                self.standardDev[x, y] = np.std(self.viewAllPixelsInSamplingWindow((x, y))) 
         return
 
 
-    def meanOnePixelWithSamplingWindow(self, pixelCoords: tuple):
-        """DOCS 
-        """ 
-        valuesOfPixelsInSamplingWindow = self.viewAllPixelsInSamplingWindow(pixelCoords, False) 
-        return np.mean(valuesOfPixelsInSamplingWindow)
-
-
-    def meanOfWholeImage(self) -> np.ndarray:
+    def meanOfWholeImage(self) -> None:
         """DOCS
-        """
+        """  
         for x in range(self.sizeAlongXAxis):
             for y in range(self.sizeAlongYAxis):
-                self.mean[x, y] = self.meanOnePixelWithSamplingWindow((x, y))
-        return 
+                self.mean[x, y] = np.mean(self.viewAllPixelsInSamplingWindow((x, y))) 
+        return
 
 
     def showImageInRealSpace(self) -> None:
@@ -197,9 +177,8 @@ def contrastCalculation(
     """DOCS
     """
     differenceImage = createDifferenceImage(speckleImage, uniformImage)
-
     differenceImageWithDefocusIncrease = ImageForHiLo(
-        globalConstants["windowValue"],
+        globalParams["windowValue"],
         imageArray = differenceImage.applyFilter(bandpassFilter)
     )
 
@@ -219,7 +198,7 @@ def contrastCalculation(
 
     constrastFunctionSquared = (
         (differenceImageWithDefocusIncrease.standardDev**2 - noiseInducedBias) / 
-        np.mean(speckleImage.data)**2
+        speckleImage.mean**2
     )
 
     return np.sqrt(constrastFunctionSquared)
@@ -259,7 +238,7 @@ def createDifferenceImage(imageBeingSubstracted: ImageForHiLo, imageToSubstract:
     """DOCS
     """
     substractedImageData = rescaleImage(imageBeingSubstracted.data - imageToSubstract.data)
-    return ImageForHiLo(globalConstants["windowValue"], imageArray = substractedImageData)
+    return ImageForHiLo(globalParams["windowValue"], imageArray = substractedImageData)
 
 
 def noiseInducedBiasComputation(
@@ -271,8 +250,7 @@ def noiseInducedBiasComputation(
     """
     speckleImage.meanOfWholeImage()
     uniformImage.meanOfWholeImage()
-    print(speckleImage.mean)
-    print(speckleImage.mean)
+    meanOfSpeckleImage, meanOfUniformImage = speckleImage.mean, uniformImage.mean
 
     filterIntegration = integrate2DArray(
         bandpassFilter.kSpaceX[0], 
@@ -288,9 +266,9 @@ def noiseInducedBiasComputation(
             noiseBias[x, y] = (
                     (
                         (
-                            (globalConstants["cameraGain"] * uniformImage.mean[x, y]) 
-                            + (globalConstants["cameraGain"] * speckleImage.mean[x, y]) 
-                            + globalConstants["readoutNoiseVariance"]
+                            (globalParams["cameraGain"] * meanOfUniformImage[x, y]) 
+                            + (globalParams["cameraGain"] * meanOfSpeckleImage[x, y]) 
+                            + globalParams["readoutNoiseVariance"]
                     ) * filterIntegration
                 )
             )
@@ -332,7 +310,7 @@ def imagingOTF(sizeAlongXAxis: int, sizeAlongYAxis: int, numAperture: float, wav
     """DOCS
     """
     bandwidth = 2 * numAperture / (wavelength * 1e-9)
-    scaleUnits = globalConstants["magnification"] / (globalConstants["pixelSize"] * 1e-6) / bandwidth
+    scaleUnits = globalParams["magnification"] / (globalParams["pixelSize"] * 1e-6) / bandwidth
     pixelValues = np.zeros(shape = (sizeAlongXAxis, sizeAlongYAxis))
     for x in range(sizeAlongXAxis):
         for y in range(sizeAlongYAxis):
@@ -371,14 +349,14 @@ def estimateEta(bandpassFilter: FiltersForHiLo) -> float:
     illuminationOTF = imagingOTF(
         bandpassFilter.sizeAlongKSpaceX, 
         bandpassFilter.sizeAlongKSpaceY,
-        globalConstants["illuminationAperture"],
-        globalConstants["illuminationWavelength"]
+        globalParams["illuminationAperture"],
+        globalParams["illuminationWavelength"]
     )
     detectionOTF = imagingOTF(
         bandpassFilter.sizeAlongKSpaceX,
         bandpassFilter.sizeAlongKSpaceY,
-        globalConstants["detectionAperture"],
-        globalConstants["detectionWavelength"]
+        globalParams["detectionAperture"],
+        globalParams["detectionWavelength"]
     )
     bandpassFilterData = bandpassFilter.data
     fudgeFactor = 1.2
@@ -404,20 +382,20 @@ def computeLoImageOfHiLo(
     """
     contrastFunction = contrastCalculation(uniformImage, speckleImage, bandpassFilter)
     contrastTimesUniform = ImageForHiLo(
-        globalConstants["windowValue"], 
+        globalParams["windowValue"], 
         imageArray = contrastFunction * uniformImage.data
     )
-    lowpassFilter = FiltersForHiLo((sizeXForFilter, sizeYForFilter), "lowpass", globalConstants["sigma"])
+    lowpassFilter = FiltersForHiLo((sizeXForFilter, sizeYForFilter), "lowpass", globalParams["sigmaLP"])
     loImage = contrastTimesUniform.applyFilter(lowpassFilter)
-    return ImageForHiLo(globalConstants["windowValue"], imageArray = loImage)
+    return ImageForHiLo(globalParams["windowValue"], imageArray = loImage)
 
 
 def computeHiImageOfHiLo(uniformImage: ImageForHiLo) -> ImageForHiLo:
     """DOCS
     """
-    highpassFilter = FiltersForHiLo((sizeXForFilter, sizeYForFilter), "highpass", globalConstants["sigma"])
+    highpassFilter = FiltersForHiLo((sizeXForFilter, sizeYForFilter), "highpass", globalParams["sigmaLP"])
     hiImage = uniformImage.applyFilter(highpassFilter)
-    return ImageForHiLo(globalConstants["windowValue"], imageArray = hiImage)
+    return ImageForHiLo(globalParams["windowValue"], imageArray = hiImage)
 
 
 def checkIfSizeMatch(uniformImage: ImageForHiLo, speckleImage: ImageForHiLo) -> tuple:
@@ -444,24 +422,20 @@ def createHiLoImage(uniformImage: ImageForHiLo, speckleImage: ImageForHiLo) -> I
     """DOCS
     """
     # Step to compute eta 
-    bandpassFilter = FiltersForHiLo((sizeXForFilter, sizeYForFilter), "doublegauss", globalConstants["sigma"])
+    bandpassFilter = FiltersForHiLo((sizeXForFilter, sizeYForFilter), "doublegauss", globalParams["sigma"])
     eta = estimateEta(bandpassFilter)
-    print("Eta estimated!")
 
+    # Step to compute Lo image of HiLo
     loImage = computeLoImageOfHiLo(uniformImage, speckleImage, bandpassFilter)
-    print("Lo image done!")
 
     # Step to compute the Hi image of HiLo
-    highpassFilter = FiltersForHiLo((sizeXForFilter, sizeYForFilter), "highpass", globalConstants["sigma"])
-    hiImage = uniformImage.applyFilter(highpassFilter)
-    print("Hi image done")
+    hiImage = computeHiImageOfHiLo(uniformImage)
 
     # Build the HiLo final image
     hiLoImage = ImageForHiLo(
-        globalConstants["windowValue"], 
+        globalParams["windowValue"], 
         imageArray = eta * np.abs(loImage.data) + np.abs(hiImage.data)
     )
-    print("HiLo image done!")
     return hiLoImage
 
 
@@ -475,23 +449,10 @@ def sendMultiprocessingUnits(functionToSplit, paramsToIterateOver: list) -> np.n
     return resultingArray
 
 
-def sortListOfImageFiles(imageFilePath: str) -> int:
-    """DOCS
-    """
-    return int(imageFilePath.split("TimeLapse_")[1].split("-")[0])
-
-
-def readFilesInDirectory(directoryToRead: str) -> list:
-    """DOCS
-    """
-    allFilesInDirectory = [files for files in glob.glob(directoryToRead + "*.tif")]
-    return sorted(allFilesInDirectory, key = sortListOfImageFiles)
-
-
 def obtainUniformAndSpecklesFromDir(uniformDirectory: str, speckleDirectory: str) -> tuple:
     """DOCS
     """
-    uniformFiles, speckleFiles = readFilesInDirectory(uniformDirectory), readFilesInDirectory(speckleDirectory)
+    uniformFiles, speckleFiles = gu.readFilesInDirectory(uniformDirectory), gu.readFilesInDirectory(speckleDirectory)
     return uniformFiles, speckleFiles
 
 
@@ -501,8 +462,8 @@ def buildUniformAndSpeckleObjects(allUniformPath: list, allSpecklePath: list) ->
     checkIfLengthMatch(allUniformPath, allSpecklePath)
     allImageForHiLo = [
             (
-                ImageForHiLo(imagePath = unif, samplingWindow = globalConstants["windowValue"]), 
-                ImageForHiLo(imagePath = speck, samplingWindow = globalConstants["windowValue"])
+                ImageForHiLo(imagePath = unif, samplingWindow = globalParams["windowValue"]), 
+                ImageForHiLo(imagePath = speck, samplingWindow = globalParams["windowValue"])
             )
             for unif, speck in zip(allUniformPath, allSpecklePath)
     ]
@@ -510,44 +471,33 @@ def buildUniformAndSpeckleObjects(allUniformPath: list, allSpecklePath: list) ->
     return allImageForHiLo, sizeXForFilter, sizeYForFilter
 
 
-def buildHiLoImagesDirectory(principalDirectory: str, allHiLoImages: list) -> None:
+def buildHiLoImagesDirectory(mainDirectory: str, allHiLoImages: list) -> None:
     """DOCS
     """
-    hiLoImagesData = [(image.data).astype(np.int16) for image in allHiLoImages]
-    os.chdir(mainDirectory)
-    return tf.imwrite("finalHiLoImages.tif", hiLoImagesData)
+    hiLoImagesData = [image.data for image in allHiLoImages]
+    directoryToInputResult = mainDirectory + "Results_Of_Processing/Anatomic_Sectionned_Optically/" 
+    gu.createDirectoryIfInexistant(directoryToInputResult)
+    tf.imwrite(directoryToInputResult + "Anatomic_HiLo_Images.tif", hiLoImagesData, dtype = "uint16")
+    return
 
 
-if __name__ == "__main__":  
-    # Constant parameters
-    globalConstants = {    
-        "cameraGain" : 1,
-        "readoutNoiseVariance" : 0.3508935,
-        "sigma" : 2,
-        "waveletGaussiansRatio" : 2,
-        "windowValue" : 3,
-        "illuminationAperture" : 1,
-        "detectionAperture" : 1,
-        "illuminationWavelength" : 488e-9,
-        "detectionWavelength" : 520e-9,
-        "pixelSize" : 4.5,
-        "magnification" : 20
-    }
+def runWholeHiLoImageProcessing(simParams: dict, mainDir: str, unifDirPath: str, speckDirPath: str) -> None:
+    """DOCS
+    """
+    global globalParams
+    globalParams = simParams
 
-    mainDirectory = "/Users/dcclab/Desktop/MainDir/"
-    allUniformPath, allSpecklePath = obtainUniformAndSpecklesFromDir(
-            "/Users/dcclab/Desktop/MainDir/Test_unif/", 
-            "/Users/dcclab/Desktop/MainDir/Test_speck/"
-    )
+    allUniformPath, allSpecklePath = obtainUniformAndSpecklesFromDir(unifDirPath, speckDirPath) 
+    allImageForHiLo, xFilter, yFilter = buildUniformAndSpeckleObjects(allUniformPath, allSpecklePath)
+    
+    global sizeXForFilter
+    global sizeYForFilter
+    sizeXForFilter, sizeYForFilter = xFilter, yFilter
 
-    allImageForHiLo, sizeXForFilter, sizeYForFilter = buildUniformAndSpeckleObjects(allUniformPath, allSpecklePath)
-    print("All images initialized!")
-
-    print("Let's go!")
-    t1 = time.time()
     hiLoImages = sendMultiprocessingUnits(createHiLoImage, allImageForHiLo)
-    print(time.time() - t1)
+    buildHiLoImagesDirectory(mainDir, hiLoImages)
+    return hiLoImages
 
-    buildHiLoImagesDirectory(mainDirectory, hiLoImages)
 
+if __name__ == "__main__":
     pass
