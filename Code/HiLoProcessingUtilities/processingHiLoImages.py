@@ -11,6 +11,7 @@ import glob
 import os
 import tifffile as tf
 import globalUtilities as gu
+from rich import print
 
 
 class FiltersForHiLo:
@@ -37,7 +38,7 @@ class FiltersForHiLo:
     def simpleGaussianFilter(self) -> np.ndarray:
         """DOCS
         """
-        simpleGaussFilter = np.exp(-(self.kVectorDistance / (2.0 * self.sigma**2)))
+        simpleGaussFilter = np.exp(-(self.kVectorDistance / (2.0 * self.sigma**2))**globalParams["superGauss"])
         normSimpleGaussFilter = simpleGaussFilter / np.max(simpleGaussFilter)
         return normSimpleGaussFilter
     
@@ -421,9 +422,11 @@ def checkIfLengthMatch(allUniformPath: list, allSpecklePath: list) -> None:
 def createHiLoImage(uniformImage: ImageForHiLo, speckleImage: ImageForHiLo) -> ImageForHiLo:
     """DOCS
     """
+    print("Creating HiLo image!")
     # Step to compute eta 
     bandpassFilter = FiltersForHiLo((sizeXForFilter, sizeYForFilter), "doublegauss", globalParams["sigma"])
     eta = estimateEta(bandpassFilter)
+    # globalParams["eta"] = eta
 
     # Step to compute Lo image of HiLo
     loImage = computeLoImageOfHiLo(uniformImage, speckleImage, bandpassFilter)
@@ -434,7 +437,7 @@ def createHiLoImage(uniformImage: ImageForHiLo, speckleImage: ImageForHiLo) -> I
     # Build the HiLo final image
     hiLoImage = ImageForHiLo(
         globalParams["windowValue"], 
-        imageArray = eta * np.abs(loImage.data) + np.abs(hiImage.data)
+        imageArray = globalParams["eta"] * np.abs(loImage.data) + np.abs(hiImage.data)
     )
     return hiLoImage
 
@@ -456,7 +459,7 @@ def obtainUniformAndSpecklesFromDir(uniformDirectory: str, speckleDirectory: str
     return uniformFiles, speckleFiles
 
 
-def buildUniformAndSpeckleObjects(allUniformPath: list, allSpecklePath: list) -> list:
+def buildUniformAndSpeckleObjectsMultipleTifs(allUniformPath: list, allSpecklePath: list) -> list:
     """DOCS
     """
     checkIfLengthMatch(allUniformPath, allSpecklePath)
@@ -471,31 +474,74 @@ def buildUniformAndSpeckleObjects(allUniformPath: list, allSpecklePath: list) ->
     return allImageForHiLo, sizeXForFilter, sizeYForFilter
 
 
-def buildHiLoImagesDirectory(mainDirectory: str, allHiLoImages: list) -> None:
+def buildUniformAndSpeckleObjectsArray(unifData: list, speckData: list) -> list:
+    """DOCS
+    """
+    allImageForHiLo = [
+            (
+                ImageForHiLo(imageArray = unif, samplingWindow = globalParams["windowValue"]), 
+                ImageForHiLo(imageArray = speck, samplingWindow = globalParams["windowValue"])
+            )
+            for unif, speck in zip(unifData, speckData)
+    ]
+    sizeXForFilter, sizeYForFilter = checkIfSizeMatch(allImageForHiLo[0][0], allImageForHiLo[0][1])
+    return allImageForHiLo, sizeXForFilter, sizeYForFilter
+
+
+def buildHiLoImagesDirectory(mainDirectory: str, resultHiLoStackName: str, allHiLoImages: list) -> None:
     """DOCS
     """
     hiLoImagesData = [image.data for image in allHiLoImages]
-    directoryToInputResult = mainDirectory + "Results_Of_Processing/Anatomic_Sectionned_Optically/" 
+    directoryToInputResult = mainDirectory + "Results_Of_Processing/HiLo_images/" 
     gu.createDirectoryIfInexistant(directoryToInputResult)
-    tf.imwrite(directoryToInputResult + "Anatomic_HiLo_Images.tif", hiLoImagesData, dtype = "uint16")
+    tf.imwrite(directoryToInputResult + resultHiLoStackName, hiLoImagesData, dtype = "uint16")
     return
 
 
-def runWholeHiLoImageProcessing(simParams: dict, mainDir: str, unifDirPath: str, speckDirPath: str) -> None:
+def runWholeHiLoImageProcessingOnDir(
+        simParams: dict, 
+        mainDir: str,
+        unifDirPath: str, 
+        speckDirPath: str,
+        resultHiLoStackName: str
+    ) -> None:
     """DOCS
     """
     global globalParams
     globalParams = simParams
 
     allUniformPath, allSpecklePath = obtainUniformAndSpecklesFromDir(unifDirPath, speckDirPath) 
-    allImageForHiLo, xFilter, yFilter = buildUniformAndSpeckleObjects(allUniformPath, allSpecklePath)
+    allImageForHiLo, xFilter, yFilter = buildUniformAndSpeckleObjectsMultipleTifs(allUniformPath, allSpecklePath)
     
     global sizeXForFilter
     global sizeYForFilter
     sizeXForFilter, sizeYForFilter = xFilter, yFilter
 
     hiLoImages = sendMultiprocessingUnits(createHiLoImage, allImageForHiLo)
-    buildHiLoImagesDirectory(mainDir, hiLoImages)
+    buildHiLoImagesDirectory(mainDir, resultHiLoStackName, hiLoImages)
+    return hiLoImages
+
+
+def runWholeHiLoImageProcessingOnArray(
+        simParams: dict, 
+        mainDir: str,
+        unifData: str, 
+        speckData: str,
+        resultHiLoStackName: str
+    ) -> None:
+    """DOCS
+    """
+    global globalParams
+    globalParams = simParams
+
+    allImageForHiLo, xFilter, yFilter = buildUniformAndSpeckleObjectsArray(unifData, speckData)
+
+    global sizeXForFilter
+    global sizeYForFilter
+    sizeXForFilter, sizeYForFilter = xFilter, yFilter
+
+    hiLoImages = sendMultiprocessingUnits(createHiLoImage, allImageForHiLo)
+    buildHiLoImagesDirectory(mainDir, resultHiLoStackName, hiLoImages)
     return hiLoImages
 
 

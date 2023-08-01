@@ -109,7 +109,9 @@ def setParameterForHiLoComputation() -> dict:
         "illuminationWavelength" : 488e-9,
         "detectionWavelength" : 520e-9,
         "pixelSize" : 4.5,
-        "magnification" : 20
+        "magnification" : 20,
+        "superGauss": 2,
+        "eta": 0
     }
     parameters["sigmaLP"] = 2.86 * parameters["sigma"] * (1 + parameters["waveletGaussiansRatio"] / 2)
     return parameters
@@ -179,7 +181,7 @@ def temporalMeanOfTimeAcquisition(timeAcqDirectoryToCorrect: str, directoryToInp
     eachCorrectedPlanes = readFilesInAllCorrectedDirectories(timeAcqDirectoryToCorrect)
     averagedAndMotionCorrectedPlanes = [np.mean(plane, axis = 0) for plane in eachCorrectedPlanes]
     
-    removeDirectory(timeAcqDirectoryToCorrect)
+    # removeDirectory(timeAcqDirectoryToCorrect)
 
     tf.imwrite(nameOfFile, averagedAndMotionCorrectedPlanes)
     return averagedAndMotionCorrectedPlanes
