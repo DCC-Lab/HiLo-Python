@@ -1,0 +1,10 @@
+antspyx==0.3.8
+caiman==1.9.15
+Calimba==1.0
+matplotlib==3.5.1
+multiprocess==0.70.14
+numpy==1.21.6
+pynrrd==0.4.2
+rich==13.5.1
+scipy==1.8.0
+tifffile==2022.3.16
