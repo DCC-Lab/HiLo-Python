@@ -1,5 +1,5 @@
 """
-Brief explanation on what the module does
+Module containing functions to do  registration from one stack of chosen image to another
 """
 import numpy as np
 import subprocess as sub
@@ -8,21 +8,21 @@ import tifffile as tf
 import os
 import glob
 from rich import print
-
+import globalUtilities as gu
 
 def registrationToConsole(
         whereToStoreResults: str, 
         movingReferentialStack: str, 
         fixedReferentialStack: str,
-        alignedFilename: str
+        alignedFilename: str,
+        pathOfANTs: str
     ) -> str:
     """DOCS
     """
-    alignedStackName = whereToStoreResults + alignedFilename
-    antsPath = "/Users/dcclab/Documents/where_ants_is/install/bin"
+    alignedStackName = whereToStoreResults + alignedFilename 
     print("Registration starting!")
     os.system(
-            f"export ANTSPATH={antsPath};"
+            f"export ANTSPATH={pathOfANTs};"
             + f"export PATH=$ANTSPATH:$PATH;"
             + f"export ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS=18;"
             + f"antsRegistration -d 3 --float 1 -v --output [,{alignedStackName}] --interpolation gaussian" 
@@ -46,10 +46,14 @@ def applyRegistrationToTwoImageStacks(
         movingReferentialStackData: np.ndarray,
         movingReferentialStackName: str,
         fixedReferentialStackData: np.ndarray,
-        fixedReferentialStackName: str
+        fixedReferentialStackName: str,
+        pathOfANTs: str
     ) -> np.ndarray:
     """DOCS
     """
+    registrationResults = whereToStoreResults + "registrationResults/"
+    gu.createDirectoryIfInexistant(registrationResults)
+
     alignedStackName = (
         movingReferentialStackName.split(".")[0] 
         + "WarpedOn" 
@@ -57,22 +61,23 @@ def applyRegistrationToTwoImageStacks(
         + ".nrrd"
     ) 
     saveStackAsNrrd(
-        whereToStoreResults + "Registration_Results/", 
+        registrationResults, 
         movingReferentialStackData, 
         movingReferentialStackName
     )
     saveStackAsNrrd(
-        whereToStoreResults + "Registration_Results/", 
+        registrationResults, 
         fixedReferentialStackData, 
         fixedReferentialStackName
     )
     registrationToConsole(
-        whereToStoreResults + "Registration_Results/",
-        whereToStoreResults + "Registration_Results/" + movingReferentialStackName,
-        whereToStoreResults + "Registration_Results/" + fixedReferentialStackName,
-        alignedStackName
+        registrationResults,
+        registrationResults + movingReferentialStackName,
+        registrationResults + fixedReferentialStackName,
+        alignedStackName,
+        pathOfANTs
     )
-    movingWarpedOnFixed = readNrrdStackAndStaveAsTif(whereToStoreResults + "Registration_Results/", alignedStackName)
+    movingWarpedOnFixed = readNrrdStackAndStaveAsTif(registrationResults, alignedStackName)
     return movingWarpedOnFixed 
 
 

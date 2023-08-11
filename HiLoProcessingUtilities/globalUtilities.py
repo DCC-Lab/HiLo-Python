@@ -1,5 +1,5 @@
 """
-Brief explanation of the file
+Module containing useful functions used in all the process flow of HiLo data processing
 """
 import glob
 import os
@@ -15,17 +15,37 @@ def sortListOfImageFiles(imageFilePath: str) -> int:
     return int(imageFilePath.split("TimeLapse_")[1].split("-")[0])
 
 
-def readFilesInDirectory(directoryToRead: str) -> list:
+def sortListOfTimeAcqPerPlaneFiles(imageFilePath: str) -> int:
+    """DOCS
+    """
+    return int(imageFilePath.split("planeNumber")[1].split("UncorrectedImages")[0])
+
+
+def sortListOfImageFilesSparq(imageFilePath: str) -> float:
+    """DOCS
+    """
+    typeOfImage = imageFilePath.split("Sparq_")[1].split(".")[0]
+    timeOfImage = int(imageFilePath.split("Frame_")[1].split("-")[0])
+    if typeOfImage == "Processed":
+        return 1 + timeOfImage
+    elif typeOfImage == "Uniform":
+        return 2 + timeOfImage
+    elif typeOfImage == "Speckle":
+        return 3 + timeOfImage
+
+
+def readFilesInDirectory(directoryToRead: str, funcToSort) -> list:
     """DOCS
     """
     allFilesInDirectory = [files for files in glob.glob(directoryToRead + "*.tif")]
-    return sorted(allFilesInDirectory, key = sortListOfImageFiles)
+    return sorted(allFilesInDirectory, key = funcToSort)
 
 
 def obtainAllImagePath(unifDirPath: str, speckDirPath: str, timeAcquisitionPath: str) -> list:
     """DOCS
     """
-    return [readFilesInDirectory(directory) for directory in (unifDirPath, speckDirPath, timeAcquisitionPath)]
+    return [readFilesInDirectory(directory, sortListOfImageFiles) 
+            for directory in (unifDirPath, speckDirPath, timeAcquisitionPath)]
 
 
 def obtainAllImageDataFromPath(allImagePathForHiLoProcessing: list) -> list:
@@ -35,6 +55,16 @@ def obtainAllImageDataFromPath(allImagePathForHiLoProcessing: list) -> list:
         [tf.imread(path) for path in pathLists] for pathLists in allImagePathForHiLoProcessing
     ]
     return allImageDataForHiLoProcessing
+
+
+def extractDataFromSparqDirectory(sparqDirectoryPath: str) -> list:
+    """DOCS
+    """
+    pathsInDir = readFilesInDirectory(sparqDirectoryPath, sortListOfImageFilesSparq)
+    allProcessedPaths = pathsInDir[0::3] 
+    allUnifPaths = pathsInDir[1::3]
+    allSpeckPaths = pathsInDir[2::3]
+    return allProcessedPaths, allUnifPaths, allSpeckPaths
 
 
 def extractDataFromDirectoriesForHiLoProcessing(unifDirPath: str, speckDirPath: str, timeAcquisitionPath: str) -> tuple:
@@ -71,12 +101,12 @@ def createTifFilesOfPlanesFromTimeAcquisition(
     ) -> tuple:
     """DOCS
     """
-    directoryToInputData = directoryToInputResults + "Time_Acquisition_In_Order_Of_Planes/"  
+    directoryToInputData = directoryToInputResults + "timeAcquisitionInOrderOfPlanes/"  
     noWasteImageData = removeWasteImagesFromTimeAcquisition(timeAcquisitionData, imagesPerZstack)
     mergedPlanesFromZstacks = mergePlanesOfDifferentZstacks(noWasteImageData, imagesPerZstack)
     createDirectoryIfInexistant(directoryToInputData)
     for index, plane in enumerate(mergedPlanesFromZstacks):
-        tf.imwrite(directoryToInputData + f"plane_number_{index + 1}_raw_images.tif", plane)
+        tf.imwrite(directoryToInputData + f"planeNumber{index + 1}UncorrectedImages.tif", plane)
     return mergedPlanesFromZstacks, directoryToInputData
 
 
@@ -103,24 +133,24 @@ def setParameterForHiLoComputation() -> dict:
         "readoutNoiseVariance" : 0.3508935,
         "sigma" : 2,
         "waveletGaussiansRatio" : 2,
-        "windowValue" : 5,
+        "windowValue" : 7,
         "illuminationAperture" : 1,
         "detectionAperture" : 1,
         "illuminationWavelength" : 488e-9,
         "detectionWavelength" : 520e-9,
         "pixelSize" : 4.5,
         "magnification" : 20,
-        "superGauss": 2,
+        "superGauss": 1,
         "eta": 0
     }
-    parameters["sigmaLP"] = 2.86 * parameters["sigma"] * (1 + parameters["waveletGaussiansRatio"] / 2)
+    parameters["sigmaLP"] = 5.2 * parameters["sigma"] * (1 + parameters["waveletGaussiansRatio"] / 2)
     return parameters
 
 
 def sortMotionCorrectedImageFiles(imageFilePath: str) -> int:
     """DOCS
     """
-    return int(imageFilePath.split("plane_number_")[1].split("_")[0])
+    return int(imageFilePath.split("planeNumber")[1].split("U")[0])
 
 
 def readFilesInAllCorrectedDirectories(directoryWhereCorrectedAre: str) -> list:
@@ -149,10 +179,10 @@ def keepOnlyCorrectedOrMergedFiles(listOfNotMergedFiles: list, listOfMergedFiles
     """DOCS
     """
     listOfPlaneNumbersNotMerged = [
-        int(file.split("plane_number_")[1].split("_")[0]) for file in listOfNotMergedFiles
+        int(file.split("planeNumber")[1].split("U")[0]) for file in listOfNotMergedFiles
     ]
     listOfPlaneNumbersMerged = [
-        (int(file.split("plane_number_")[1].split("_")[0]), file) 
+        (int(file.split("planeNumber")[1].split("U")[0]), file) 
         for file in listOfMergedFiles
     ] 
 
@@ -174,10 +204,14 @@ def removeDirectory(directoryPath: str) -> None:
     return shutil.rmtree(directoryPath)
 
 
-def temporalMeanOfTimeAcquisition(timeAcqDirectoryToCorrect: str, directoryToInputResults: str) -> list:
+def temporalMeanOfTimeAcquisitionAfterMc(
+        timeAcqDirectoryToCorrect: str, 
+        directoryToInputResults: str,
+        nameOfAveragedAndMotionCorrectedFile: str
+    ) -> list:
     """DOCS
     """
-    nameOfFile = directoryToInputResults + "uniform_functionnal_stack.tif"
+    nameOfFile = directoryToInputResults + nameOfAveragedAndMotionCorrectedFile
     eachCorrectedPlanes = readFilesInAllCorrectedDirectories(timeAcqDirectoryToCorrect)
     averagedAndMotionCorrectedPlanes = [np.mean(plane, axis = 0) for plane in eachCorrectedPlanes]
     
@@ -185,6 +219,20 @@ def temporalMeanOfTimeAcquisition(timeAcqDirectoryToCorrect: str, directoryToInp
 
     tf.imwrite(nameOfFile, averagedAndMotionCorrectedPlanes)
     return averagedAndMotionCorrectedPlanes
+
+
+def temporalMeanOfTimeAcquisitionNoMc(
+        timeAcqDirectoryToCorrect: str,
+        directoryToInputResults: str,
+        nameOfAveragedFile: str
+    ) -> list:
+    """DOCS
+    """
+    nameOfFile = directoryToInputResults + nameOfAveragedFile
+    eachPlanes = readFilesInDirectory(timeAcqDirectoryToCorrect, sortListOfTimeAcqPerPlaneFiles)
+    averagedPlanes = [np.mean(tf.imread(plane), axis = 0) for plane in eachPlanes]
+    tf.imwrite(nameOfFile, averagedPlanes)
+    return averagedPlanes 
 
 
 if __name__ == "__main__":

@@ -1,5 +1,5 @@
 """
-Brief explanation of what the file does
+Module containing all the functions to do HiLo image treatement given a speckle and uniform stack of single image
 """
 import numpy as np
 import math
@@ -426,7 +426,7 @@ def createHiLoImage(uniformImage: ImageForHiLo, speckleImage: ImageForHiLo) -> I
     # Step to compute eta 
     bandpassFilter = FiltersForHiLo((sizeXForFilter, sizeYForFilter), "doublegauss", globalParams["sigma"])
     eta = estimateEta(bandpassFilter)
-    # globalParams["eta"] = eta
+    globalParams["eta"] = eta
 
     # Step to compute Lo image of HiLo
     loImage = computeLoImageOfHiLo(uniformImage, speckleImage, bandpassFilter)
@@ -488,11 +488,11 @@ def buildUniformAndSpeckleObjectsArray(unifData: list, speckData: list) -> list:
     return allImageForHiLo, sizeXForFilter, sizeYForFilter
 
 
-def buildHiLoImagesDirectory(mainDirectory: str, resultHiLoStackName: str, allHiLoImages: list) -> None:
+def buildHiLoImagesDirectory(resultDirectory: str, resultHiLoStackName: str, allHiLoImages: list) -> None:
     """DOCS
     """
     hiLoImagesData = [image.data for image in allHiLoImages]
-    directoryToInputResult = mainDirectory + "Results_Of_Processing/HiLo_images/" 
+    directoryToInputResult = resultDirectory + "HiLoImages/" 
     gu.createDirectoryIfInexistant(directoryToInputResult)
     tf.imwrite(directoryToInputResult + resultHiLoStackName, hiLoImagesData, dtype = "uint16")
     return
@@ -522,11 +522,11 @@ def runWholeHiLoImageProcessingOnDir(
     return hiLoImages
 
 
-def runWholeHiLoImageProcessingOnArray(
+def runWholeHiLoImageProcessingOnPaths(
         simParams: dict, 
-        mainDir: str,
-        unifData: str, 
-        speckData: str,
+        resultDir: str,
+        unifDataPath: list, 
+        speckDataPath: list,
         resultHiLoStackName: str
     ) -> None:
     """DOCS
@@ -534,14 +534,14 @@ def runWholeHiLoImageProcessingOnArray(
     global globalParams
     globalParams = simParams
 
-    allImageForHiLo, xFilter, yFilter = buildUniformAndSpeckleObjectsArray(unifData, speckData)
+    allImageForHiLo, xFilter, yFilter = buildUniformAndSpeckleObjectsMultipleTifs(unifDataPath, speckDataPath)
 
     global sizeXForFilter
     global sizeYForFilter
     sizeXForFilter, sizeYForFilter = xFilter, yFilter
 
     hiLoImages = sendMultiprocessingUnits(createHiLoImage, allImageForHiLo)
-    buildHiLoImagesDirectory(mainDir, resultHiLoStackName, hiLoImages)
+    buildHiLoImagesDirectory(resultDir, resultHiLoStackName, hiLoImages)
     return hiLoImages
 
 
